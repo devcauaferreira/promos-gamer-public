@@ -3,7 +3,7 @@ name: Promos Gamer
 on:
   schedule:
     # UTC; a cada 5 minutos, deslocado do início da hora. O GitHub pode atrasar execuções.
-    - cron: '2/5 * * * *'
+    - cron: '3/5 * * * *'
   workflow_dispatch:
     inputs:
       publish:

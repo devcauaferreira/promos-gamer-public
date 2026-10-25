@@ -127,7 +127,7 @@ Amazon, Magalu e Pichau continuam dependendo de fontes autorizadas próprias.
 ## Configurar o GitHub
 
 O workflow `.github/workflows/promos.yml` agenda um ciclo a cada 5 minutos,
-começando no minuto 2 de cada hora UTC. Possui disparo manual, limite de 25 minutos
+começando no minuto 3 de cada hora UTC. Possui disparo manual, limite de 25 minutos
 e concorrência única.
 Ele não faz commits de banco, tokens ou relatórios no repositório.
 

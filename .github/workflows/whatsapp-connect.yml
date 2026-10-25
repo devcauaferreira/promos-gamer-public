@@ -1,0 +1,51 @@
+name: Conectar WhatsApp na nuvem
+on:
+  workflow_dispatch:
+    inputs:
+      send_test:
+        description: Enviar uma mensagem técnica de teste ao grupo configurado (não é oferta)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: promos-gamer-production
+  cancel-in-progress: false
+jobs:
+  connect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUNBUFFERED: '1'
+      SEND_TEST: ${{ inputs.send_test }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Instalar dependências
+        run: |
+          python -m pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+          npm ci
+      - name: Conectar e salvar sessão (teste de envio opcional)
+        env:
+          SUPABASE_PROJECT_URL: ${{ secrets.SUPABASE_PROJECT_URL }}
+          BOT_API_SECRET: ${{ secrets.BOT_API_SECRET }}
+          WHATSAPP_SESSION_KEY: ${{ secrets.WHATSAPP_SESSION_KEY }}
+          PROMOS_SETTINGS_JSON: ${{ secrets.PROMOS_SETTINGS_JSON }}
+          PROMOS_PRODUCTS_JSON: ${{ secrets.PROMOS_PRODUCTS_JSON }}
+        run: |
+          if [ "$SEND_TEST" = "true" ]; then
+            python -m services.public_job connect --test
+          else
+            python -m services.public_job connect
+          fi
+      # QR e sessão nunca são impressos nem publicados como artifacts.

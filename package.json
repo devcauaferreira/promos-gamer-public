@@ -1,0 +1,13 @@
+{
+  "name": "promos-gamer-whatsapp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "whatsapp": "node publishers/whatsapp_bridge.cjs"
+  },
+  "dependencies": {
+    "qrcode": "1.5.4",
+    "qrcode-terminal": "0.12.0",
+    "whatsapp-web.js": "1.34.7"
+  }
+}

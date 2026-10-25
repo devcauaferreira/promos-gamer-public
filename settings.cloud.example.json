@@ -1,0 +1,26 @@
+{
+  "database_path": "database/promos.sqlite3",
+  "minimum_discount_percent": 15,
+  "history_days": 30,
+  "minimum_history_days": 1,
+  "repeat_hours": 24,
+  "trusted_sellers": [["kabum", "KaBuM!"], ["pichau", "Pichau"], ["amazon", "Amazon.com.br"], ["magalu", "Magalu"], ["magalu", "Magazine Luiza"]],
+  "whatsapp_group_id": "",
+  "max_messages_per_run": 10,
+  "interval_seconds": 300,
+  "sources": {
+    "mercadolivre": {"mode": "official_api", "api_resource": "catalog", "oauth_mode": "supabase", "catalog_ids": {"processador": ["MLB19444510"]}},
+    "amazon": {"mode": "authorized_feed", "feed_path": "", "authorization_reference": "", "max_age_minutes": 60},
+    "magalu": {"mode": "authorized_feed", "feed_path": "", "authorization_reference": "", "max_age_minutes": 60},
+    "pichau": {"mode": "authorized_feed", "feed_path": "", "authorization_reference": "", "max_age_minutes": 60},
+    "kabum": {"mode": "legacy_web"}
+  },
+  "discovery": {
+    "enabled": true,
+    "stores": ["kabum", "mercadolivre", "amazon", "magalu", "pichau"],
+    "categories": ["processador", "placa_mae", "memoria_ram", "ssd", "fonte", "placa_video", "kit_upgrade"],
+    "refresh_hours": 6,
+    "products_per_category": 20,
+    "max_products_per_run": 20
+  }
+}

@@ -1,0 +1,11 @@
+project_id = "promos-gamer"
+
+# O Mercado Livre redireciona sem JWT; o handler valida state e PKCE.
+[functions.mercadolivre-callback]
+verify_jwt = false
+
+# Esta função valida o segredo privado do bot no próprio handler.
+[functions.promos-state]
+verify_jwt = false
+[functions.whatsapp-session]
+verify_jwt = false

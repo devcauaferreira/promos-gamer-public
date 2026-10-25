@@ -52,6 +52,18 @@ class PriceRules(unittest.TestCase):
             self.assertEqual(decision.status, "approved")
             self.assertAlmostEqual(decision.discount_percent, 22.44897959)
 
+    def test_weekly_window_excludes_prices_older_than_seven_days(self):
+        now = datetime(2026, 10, 26, 12, tzinfo=timezone.utc)
+        offer = self.offer()
+        with closing(connect(":memory:")) as db:
+            record_price(db, "kabum", "cpu", 49000, now - timedelta(days=8))
+            record_price(db, "kabum", "cpu", 49000, now - timedelta(days=7))
+            decision = evaluate(db, offer, Config(history_days=7), now)
+            self.assertEqual(decision.status, "approved")
+            self.assertEqual(decision.average_cents, 49000)
+            db.execute("DELETE FROM prices WHERE day=?", ((now - timedelta(days=7)).date().isoformat(),))
+            self.assertEqual(evaluate(db, offer, Config(history_days=7), now).status, "pending_review")
+
     def test_parser_rejects_wrong_currency(self):
         with self.assertRaises(ValueError):
             self.offer(priceCurrency="USD")

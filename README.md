@@ -86,7 +86,7 @@ Anúncios sem identificação do vendedor ficam pendentes.
 ## Quando publica
 
 Exige ao menos um dia anterior de histórico e queda mínima de 15% sobre a média
-dos últimos 30 dias. O dia atual não entra na média. Não usa preço riscado.
+dos últimos 7 dias. O dia atual não entra na média. Não usa preço riscado.
 Guarda uma observação diária em UTC por produto, vendedor e condição de pagamento.
 Sem histórico, com estoque ausente ou dados incompletos, aguarda revisão.
 Repetições são bloqueadas por 24 horas por oferta/grupo, com limite de dez

@@ -90,6 +90,16 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(discover(db, Mock(), settings, sources={"kabum": source})[0]["found"], 1)
             self.assertEqual(source.search.call_count, 2)
 
+    def test_missing_feed_replaces_stale_legacy_status(self):
+        source = Mock()
+        source.mode = "authorized_feed"
+        source.status.return_value = {"state": "needs_authorized_feed", "error": "missing"}
+        settings = {"discovery": {"stores": ["amazon"], "categories": ["ssd"]}}
+        with closing(connect(":memory:")) as db:
+            discover(db, Mock(), settings, sources={"amazon": source})
+            row = db.execute("SELECT status FROM discovery_runs WHERE store='amazon' AND category='ssd'").fetchone()[0]
+            self.assertIn('needs_authorized_feed', row)
+
 
 if __name__ == "__main__":
     unittest.main()

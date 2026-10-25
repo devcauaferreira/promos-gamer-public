@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from services.public_job import run_job
+from services.public_job import run_job, safe_summary
 
 
 class PublicJobTests(unittest.TestCase):
@@ -38,3 +38,23 @@ class PublicJobTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 run_job("publish", send_test=True)
             run.assert_not_called()
+
+    def test_safe_summary_omits_private_offer_details(self):
+        import json
+        previous = Path.cwd()
+        with tempfile.TemporaryDirectory() as folder:
+            os.chdir(folder)
+            try:
+                Path("reports").mkdir()
+                Path("reports/sources.json").write_text(json.dumps([
+                    {"store": "kabum", "state": "operational", "error": "secret-value"}]))
+                Path("reports/latest.json").write_text(json.dumps([
+                    {"url": "https://secret.example/item", "decision": {"status": "pending_review",
+                     "reasons": ["Histórico insuficiente", "secret-value"]}}]))
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    safe_summary()
+                self.assertIn("sem histórico anterior: 1", output.getvalue())
+                self.assertNotIn("secret", output.getvalue())
+            finally:
+                os.chdir(previous)

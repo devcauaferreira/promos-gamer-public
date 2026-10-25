@@ -86,8 +86,12 @@ def discover(db, browser, settings, force=False, sources=None):
         for category in options.get("categories", list(CATEGORIES)):
             health = source.status()
             if "error" in health:
-                report.append({"store": store, "category": category, "source": source.mode,
-                               "status": health["state"], "error": health["error"], "checked_at": now.isoformat()})
+                row = {"store": store, "category": category, "source": source.mode,
+                       "status": health["state"], "error": health["error"], "checked_at": now.isoformat()}
+                db.execute("INSERT OR REPLACE INTO discovery_runs VALUES (?,?,?,?)",
+                           (store, category, now.isoformat(), json.dumps(row, ensure_ascii=False)))
+                db.commit()
+                report.append(row)
                 continue
             previous = db.execute("SELECT checked_at,status FROM discovery_runs WHERE store=? AND category=?", (store, category)).fetchone()
             if not force and previous and previous[0] > cutoff:

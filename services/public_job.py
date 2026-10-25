@@ -1,8 +1,30 @@
 """Executa tarefas com credenciais sem expor sua saída nos logs públicos do Actions."""
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
+
+
+def safe_summary():
+    """Mostra apenas contagens e estados conhecidos, nunca URLs ou erros externos."""
+    sources_file = Path("reports/sources.json")
+    offers_file = Path("reports/latest.json")
+    if not sources_file.is_file() or not offers_file.is_file():
+        return
+    sources = json.loads(sources_file.read_text(encoding="utf-8"))
+    offers = json.loads(offers_file.read_text(encoding="utf-8"))
+    allowed_stores = {"kabum", "mercadolivre", "amazon", "magalu", "pichau"}
+    allowed_states = {"operational", "ready_to_validate", "needs_authorized_feed",
+                      "feed_missing", "oauth_pending", "needs_credentials", "disabled",
+                      "access_denied", "rate_limited", "backoff"}
+    for row in sources:
+        store, state = row.get("store"), row.get("state")
+        if store in allowed_stores:
+            print(f"Fonte {store}: {state if state in allowed_states else 'indisponível'}", flush=True)
+    approved = sum(row.get("decision", {}).get("status") == "approved" for row in offers)
+    no_history = sum("Histórico insuficiente" in row.get("decision", {}).get("reasons", ()) for row in offers)
+    print(f"Produtos avaliados: {len(offers)}; ofertas aprovadas: {approved}; sem histórico anterior: {no_history}", flush=True)
 
 
 def run_job(mode, limit=20, send_test=False):
@@ -28,6 +50,11 @@ def run_job(mode, limit=20, send_test=False):
     if result.returncode:
         print(f"Tarefa {mode} falhou. Execute o diagnóstico em ambiente privado.", flush=True)
         return 1
+    if mode == "collect":
+        try:
+            safe_summary()
+        except (OSError, ValueError, TypeError):
+            print("Resumo indisponível; dados detalhados mantidos no runner.", flush=True)
     print(f"Tarefa {mode} concluída.", flush=True)
     return 0
 

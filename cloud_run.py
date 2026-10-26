@@ -49,7 +49,7 @@ if __name__ == "__main__":
     run_id = uuid4().hex
     with closing(connect(config.database_path)) as db:
         start_run(db, run_id, 'publish' if args.send else 'collect',
-                  os.environ.get('GITHUB_EVENT_NAME', 'local'))
+                  os.environ.get('MONITOR_TRIGGER') or os.environ.get('GITHUB_EVENT_NAME', 'local'))
         state.checkpoint(db)
     from services.runner import cycle
     report, completed = [], False

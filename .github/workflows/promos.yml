@@ -14,6 +14,13 @@ on:
         description: Limite de produtos descobertos neste ciclo (1 a 500)
         type: number
         default: 20
+      source:
+        description: Origem do disparo
+        type: choice
+        options:
+          - manual
+          - supabase_cron
+        default: manual
 
 permissions:
   contents: read
@@ -30,8 +37,9 @@ jobs:
     timeout-minutes: 25
     env:
       PYTHONUNBUFFERED: '1'
-      SHOULD_PUBLISH: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) || (github.event_name == 'schedule' && vars.ENABLE_WHATSAPP_PUBLISH == 'true') }}
+      SHOULD_PUBLISH: ${{ vars.ENABLE_WHATSAPP_PUBLISH == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.publish) || github.event_name == 'schedule') }}
       PRODUCT_LIMIT: ${{ inputs.limit || 20 }}
+      MONITOR_TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.source == 'supabase_cron' && 'supabase_cron' || github.event_name }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:

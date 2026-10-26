@@ -8,6 +8,20 @@ O workflow agenda um ciclo a cada cinco minutos, sujeito a atrasos do GitHub.
 Cada rodada consulta até 20 produtos descobertos em rodízio, além dos links
 manuais. A sessão WhatsApp só é iniciada quando a coleta encontra oferta aprovada.
 
+Se o cron do GitHub não gerar eventos, `supabase/scheduler.sql` fornece um
+disparador alternativo a cada cinco minutos. Ele foi instalado INATIVO; somente
+`configurar-agendador.cmd` o ativa após cadastrar no Vault um fine-grained token
+GitHub e receber HTTP 204 no disparo de validação. O token deve permitir apenas
+Actions: Read and write no repositório de produção. A entrada é oculta no terminal;
+o segredo não entra no código, no Git ou nos logs públicos. O auxiliar usa o login
+Supabase existente e um arquivo SQL temporário dentro de `reports`, removido após
+a operação. O Vault e a fila `pg_net` são privados; administradores do banco podem
+acessar as requisições pendentes. Renove o token antes da validade escolhida.
+O GitHub continua executando o monitor; o Supabase fornece somente o relógio.
+`python status-cloud.py` mostra o ciclo persistido e sua origem; o disparador
+externo usa `supabase_cron`. O controle global `ENABLE_WHATSAPP_PUBLISH` continua
+necessário para qualquer envio. A concorrência do workflow serializa ciclos.
+
 A URL de callback é configurada em `ML_REDIRECT_URI`, nos secrets da função:
 `https://PROJECT_REF.supabase.co/functions/v1/mercadolivre-callback`.
 Consulte a URL real no seu painel Supabase ou execute localmente

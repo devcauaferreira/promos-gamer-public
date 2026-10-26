@@ -72,13 +72,15 @@ resultado sem filtro de domínio era um computador completo, sem anúncios (404)
 por isso não basta usar cegamente o primeiro resultado da busca.
 
 `catalog_ids` aceita listas por categoria para produtos confirmados. Sem lista,
-a descoberta consulta até três produtos por categoria e classifica seus títulos.
+a descoberta consulta cinco produtos por categoria por padrão, filtra por domínio
+de hardware quando disponível e classifica seus títulos. O limite é configurável
+em `catalog_products_per_category`, entre um e dez.
 Cada lista de anúncios é limitada aos primeiros 100; um anúncio ausente dessa
 página fica em revisão, sem presumir que tenha acabado. Links descobertos
 preservam `catalog_id`, `item_id` selecionado e vendedor; links manuais antigos
 precisam de mapeamento confirmado e não voltam ao endpoint bloqueado.
 
-Na verificação limitada das cinco categorias, processadores e SSDs retornaram
+Na verificação inicial limitada das cinco categorias, processadores e SSDs retornaram
 anúncios utilizáveis pelo adaptador. Placas-mãe, RAM e fontes não produziram
 entradas dentro dos três primeiros resultados classificados; isso não demonstra
 ausência de ofertas na loja. A busca não promete cobertura completa do catálogo.

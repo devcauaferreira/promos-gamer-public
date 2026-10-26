@@ -142,5 +142,7 @@ def discover(db, browser, settings, force=False, sources=None):
 def tracked_entries(db, limit=20):
     cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     rows = db.execute("""SELECT data FROM tracked_products WHERE last_seen>=?
-        ORDER BY COALESCE(last_checked, ''), store, category, id LIMIT ?""", (cutoff, limit)).fetchall()
+        ORDER BY COALESCE(last_checked, ''),
+        CASE WHEN json_extract(data, '$.availability_verified') = 1 THEN 0 ELSE 1 END,
+        store, category, id LIMIT ?""", (cutoff, limit)).fetchall()
     return [json.loads(row[0]) for row in rows]

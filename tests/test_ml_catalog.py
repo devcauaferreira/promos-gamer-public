@@ -33,7 +33,7 @@ class CatalogTests(unittest.TestCase):
         with closing(connect(":memory:")) as db:
             source, client = self.source(db)
             client.get.side_effect = [self.product(), {"results": [self.item()]}]
-            offer = source.collect(self.entry())
+            offer = source.collect(dict(self.entry(), availability_verified=True))
             self.assertEqual((offer.price_cents, offer.seller_id), (58200, "42"))
             self.assertEqual(offer.source, "official_catalog")
             self.assertEqual(offer.official_store_id, 1)
@@ -103,9 +103,9 @@ class CatalogTests(unittest.TestCase):
     def test_search_skips_empty_catalog_but_not_permission_denial(self, secret):
         with closing(connect(":memory:")) as db:
             source, client = self.source(db)
-            client.get.side_effect = [{"results": [self.product()]}, SourceError("not_found", "404")]
+            client.get.side_effect = [{"results": [self.product()]}, self.product(), SourceError("not_found", "404")]
             self.assertEqual(source.search("processador", 5), [])
-            client.get.side_effect = [{"results": [self.product()]}, SourceError("access_denied", "403")]
+            client.get.side_effect = [{"results": [self.product()]}, self.product(), SourceError("access_denied", "403")]
             with self.assertRaises(SourceError) as caught:
                 source.search("processador", 5)
             self.assertEqual(caught.exception.state, "access_denied")
@@ -113,7 +113,7 @@ class CatalogTests(unittest.TestCase):
     def test_search_preserves_selected_item_and_catalog_mapping(self, secret):
         with closing(connect(":memory:")) as db:
             source, client = self.source(db)
-            client.get.side_effect = [{"results": [self.product()]}, {"results": [self.item()]}]
+            client.get.side_effect = [{"results": [self.product()]}, self.product(), {"results": [self.item()]}]
             entries = source.search("processador", 5)
             self.assertEqual(entries[0]["catalog_id"], "MLB19444510")
             self.assertEqual(entries[0]["id"], "ml-MLB123")
@@ -132,7 +132,7 @@ class CatalogTests(unittest.TestCase):
     def test_catalog_excludes_bulk_or_used_listing(self, secret):
         with closing(connect(":memory:")) as db:
             source, client = self.source(db)
-            client.get.side_effect = [{"results": [self.product()]},
+            client.get.side_effect = [{"results": [self.product()]}, self.product(),
                                       {"results": [dict(self.item(), min_purchase_unit=2),
                                                    dict(self.item(), condition="used")]}]
             self.assertEqual(source.search("processador", 5), [])
@@ -141,6 +141,98 @@ class CatalogTests(unittest.TestCase):
             with self.assertRaises(SourceError) as caught:
                 source.collect(self.entry())
             self.assertEqual(caught.exception.state, "wholesale_review")
+
+    def test_discovery_interleaves_products_instead_of_filling_with_first_catalog(self, secret):
+        products = [dict(self.product(), id="MLB" + str(100 + index)) for index in range(3)]
+        listings = [[dict(self.item(), item_id="MLB" + str(1000 + product * 100 + item))
+                     for item in range(20)] for product in range(3)]
+        with closing(connect(":memory:")) as db:
+            source, client = self.source(db)
+            client.get.side_effect = [{"results": products},
+                                      products[0], {"results": listings[0]},
+                                      products[1], {"results": listings[1]},
+                                      products[2], {"results": listings[2]}]
+            entries = source.search("processador", 5)
+            self.assertEqual([entry["catalog_id"] for entry in entries],
+                             ["MLB100", "MLB101", "MLB102", "MLB100", "MLB101"])
+            self.assertEqual([entry["id"] for entry in entries],
+                             ["ml-MLB1000", "ml-MLB1100", "ml-MLB1200", "ml-MLB1001", "ml-MLB1101"])
+            self.assertTrue(all(entry["availability_verified"] is False for entry in entries))
+
+    def test_discovery_prefers_verified_winner_from_later_product(self, secret):
+        first = self.product()
+        chosen = dict(self.item(), item_id="MLB999")
+        second = dict(self.product(), id="MLB19444511", buy_box_winner=dict(chosen, available_quantity=2))
+        with closing(connect(":memory:")) as db:
+            source, client = self.source(db)
+            client.get.side_effect = [{"results": [first, second]},
+                                      first, {"results": [self.item()]},
+                                      second, {"results": [chosen]}]
+            entries = source.search("processador", 1)
+            self.assertEqual(entries[0]["id"], "ml-MLB999")
+            self.assertEqual(entries[0]["catalog_id"], second["id"])
+            self.assertIs(entries[0]["availability_verified"], True)
+            client.get.side_effect = [second, {"results": [chosen]}]
+            offer = source.collect(entries[0])
+            self.assertTrue(offer.available)
+            self.assertEqual(offer.availability_evidence, "buy_box_winner")
+
+    def test_discovery_never_prioritizes_a_contradictory_winner(self, secret):
+        valid = dict(self.item(), item_id="MLB999")
+        second = dict(self.product(), id="MLB19444511", buy_box_winner=dict(valid, available_quantity=2))
+        cases = [(self.item(), changes) for changes in (
+            {"item_id": "MLB888"}, {"seller_id": 99}, {"price": 1},
+            {"currency_id": "USD"}, {"available_quantity": 0})]
+        cases += [(dict(self.item(), **changes), {}) for changes in (
+            {"status": "paused"}, {"available_quantity": 0}, {"condition": "used"})]
+        for item, winner_changes in cases:
+            with self.subTest(item=item, winner_changes=winner_changes), closing(connect(":memory:")) as db:
+                source, client = self.source(db)
+                winner = dict(dict(self.item(), available_quantity=2), **winner_changes)
+                first = dict(self.product(), buy_box_winner=winner)
+                client.get.side_effect = [{"results": [first, second]},
+                                          first, {"results": [item]},
+                                          second, {"results": [valid]}]
+                self.assertEqual(source.search("processador", 1)[0]["id"], "ml-MLB999")
+
+    def test_discovery_prioritizes_declared_quantity_and_rejects_wrong_detail_identity(self, secret):
+        with closing(connect(":memory:")) as db:
+            source, client = self.source(db)
+            quantity = dict(self.item(), item_id="MLB999", status="active", available_quantity=1)
+            client.get.side_effect = [{"results": [self.product()]}, self.product(),
+                                      {"results": [self.item(), dict(quantity, price=0),
+                                                   dict(quantity, currency_id="USD"),
+                                                   dict(quantity, seller_id=0),
+                                                   dict(quantity, official_store_id=0), quantity]}]
+            self.assertEqual(source.search("processador", 1)[0]["id"], "ml-MLB999")
+            client.get.side_effect = [{"results": [self.product()]}, dict(self.product(), id="MLB999")]
+            with self.assertRaises(SourceError) as caught:
+                source.search("processador", 1)
+            self.assertEqual(caught.exception.state, "invalid_response")
+
+    def test_discovery_bounds_product_details_and_output_even_if_api_returns_more(self, secret):
+        products = [dict(self.product(), id="MLB" + str(100 + index)) for index in range(12)]
+        with closing(connect(":memory:")) as db:
+            source, client = self.source(db)
+            source.options["catalog_products_per_category"] = 999
+            def response(url, **kwargs):
+                if "/products/search?" in url:
+                    return {"results": products}
+                pid = url.split("/products/", 1)[1].split("/", 1)[0]
+                if "/items?" in url:
+                    return {"results": [dict(self.item(), item_id=pid + str(index)) for index in range(3)]}
+                return next(product for product in products if product["id"] == pid)
+            client.get.side_effect = response
+            entries = source.search("processador", 999)
+            self.assertEqual(len(entries), 20)
+            details = [call for call in client.get.call_args_list
+                       if "/search?" not in call.args[0] and "/items?" not in call.args[0]]
+            self.assertEqual(len(details), 10)
+            self.assertEqual(len({entry["catalog_id"] for entry in entries}), 10)
+            client.reset_mock()
+            self.assertEqual(source.search("processador", 0), [])
+            client.get.assert_not_called()
+            self.assertEqual(source.discovery_version, "hardware-domains-v3")
 
     def test_catalog_health_does_not_reset_denied_items(self, secret):
         with closing(connect(":memory:")) as db:

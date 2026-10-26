@@ -1,10 +1,11 @@
+import json
 import unittest
 from contextlib import closing
 from datetime import datetime, timezone
 from unittest.mock import Mock
 
 from collectors.catalog import canonical_product
-from collectors.discovery import discover, parse_links
+from collectors.discovery import discover, parse_links, tracked_entries
 from collectors.base import SourceError
 from database.models import connect
 from services.niche import category_for
@@ -114,6 +115,21 @@ class DiscoveryTests(unittest.TestCase):
             source.discovery_version = 'v2'
             self.assertNotIn('cached', discover(db, Mock(), settings, sources={'mercadolivre': source})[0])
             self.assertEqual(source.search.call_count, 2)
+
+    def test_verified_candidates_break_ties_without_starving_older_checks(self):
+        with closing(connect(':memory:')) as db:
+            discover(db, Mock(), {'discovery': {'enabled': False}}, sources={})
+            now = datetime.now(timezone.utc).isoformat()
+            for key, verified in [('ml-a', False), ('ml-z', True)]:
+                entry = {'id': key, 'store': 'mercadolivre', 'availability_verified': verified}
+                db.execute('INSERT INTO tracked_products VALUES (?,?,?,?,?,NULL)',
+                           (key, 'mercadolivre', 'processador', json.dumps(entry), now))
+            self.assertEqual(tracked_entries(db, 1)[0]['id'], 'ml-z')
+            db.execute('UPDATE tracked_products SET last_checked=? WHERE id=?', (now, 'ml-z'))
+            self.assertEqual(tracked_entries(db, 1)[0]['id'], 'ml-a')
+            db.execute('UPDATE tracked_products SET last_checked=? WHERE id=?',
+                       ('2020-01-01T00:00:00+00:00', 'ml-a'))
+            self.assertEqual(tracked_entries(db, 1)[0]['id'], 'ml-a')
 
 
 if __name__ == "__main__":

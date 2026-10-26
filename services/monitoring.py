@@ -9,6 +9,7 @@ REASONS = ('Histórico insuficiente', 'Queda abaixo do mínimo exigido',
 SOURCE_FAILURES = ('catalog_mapping_required', 'catalog_item_missing', 'needs_authorized_feed',
                    'access_denied', 'auth_required', 'oauth_pending', 'network_error',
                    'rate_limited', 'invalid_response', 'wholesale_review',
+                   'temporarily_unavailable',
                    'price_unconfirmed', 'seller_unconfirmed', 'item_unavailable')
 
 

@@ -178,6 +178,11 @@ disponível usado para aprovar promoções. No Mercado Livre, `unknown` informa 
 de evidência, em vez de afirmar que o anúncio está sem estoque. A descoberta usa
 domínios de hardware verificados e até cinco produtos de catálogo por categoria;
 a classificação pelo título e a exigência de loja oficial continuam aplicáveis.
+A descoberta examina o orçamento de catálogos antes de cortar a lista de anúncios,
+prioriza ofertas com evidência verificável e intercala produtos diferentes. O
+desempate do rodízio favorece esses candidatos quando o instante da última coleta
+é igual; produtos verificados antes continuam aguardando os demais. O indicador
+de prioridade nunca substitui a revalidação da disponibilidade na fonte.
 
 O modo Amazon `public_catalog_review` é uma integração pública experimental, não
 uma API oficial nem comprovação de autorização da loja. Consulta somente URLs

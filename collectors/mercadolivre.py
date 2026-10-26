@@ -25,10 +25,35 @@ CATALOG_DOMAINS = {
 }
 
 
+def catalog_winner_available(item, product):
+    """O estoque do winner só comprova a oferta exata, sem contradizer o anúncio."""
+    winner = product.get("buy_box_winner")
+    quantity = item.get("available_quantity")
+    if not isinstance(winner, dict) or item.get("status") not in (None, "active"):
+        return False
+    winner_quantity = winner.get("available_quantity")
+    return (winner.get("item_id") == item.get("item_id")
+            and winner.get("seller_id") == item.get("seller_id")
+            and winner.get("currency_id") == "BRL" and winner.get("price") == item.get("price")
+            and type(winner_quantity) in (int, float) and winner_quantity > 0
+            and item.get("condition") == "new"
+            and (quantity is None or (type(quantity) in (int, float) and quantity > 0)))
+
+
+def catalog_availability(item, product):
+    quantity = item.get("available_quantity")
+    if (item.get("status") == "active" and item.get("condition") == "new"
+            and type(quantity) in (int, float) and quantity > 0):
+        return True, "quantity"
+    if catalog_winner_available(item, product):
+        return True, "buy_box_winner"
+    return False, "unknown"
+
+
 class MercadoLivreSource:
     store = "mercadolivre"
     mode = "official_api"
-    discovery_version = 'hardware-domains-v2'
+    discovery_version = 'hardware-domains-v3'
 
     def __init__(self, db, options, client=None):
         self.options = options
@@ -145,26 +170,39 @@ class MercadoLivreSource:
         if configured:
             if not isinstance(configured, list) or any(not re.fullmatch(r"MLB\d+", str(pid)) for pid in configured):
                 raise SourceError("invalid_configuration", "catalog_ids deve conter listas de IDs MLB por categoria")
-            data = {"results": [self._catalog_get("/products/" + pid, "catalog_product") for pid in configured[:products_limit]]}
+            data = {"results": [{"id": pid} for pid in configured[:products_limit]]}
         else:
             data = self._catalog_get("/products/search?" + urlencode(params), "catalog_search")
         if not isinstance(data, dict) or not isinstance(data.get("results"), list):
             raise SourceError("invalid_response", "Busca de catálogo inválida")
-        found = {}
-        for product in data["results"][:products_limit]:
-            pid = product.get("id", "")
-            if (not re.fullmatch(r"MLB\d+", str(pid)) or product.get("status") != "active"
-                    or category_for(product.get("name", "")) != category):
+        # Examina o orçamento de produtos inteiro antes de selecionar anúncios:
+        # uma página com muitos concorrentes não deve excluir os outros produtos.
+        # Em cada prioridade, intercala os produtos em round-robin.
+        tiers = [[], [], []]
+        seen_products = set()
+        for suggestion in data["results"][:products_limit]:
+            pid = suggestion.get("id", "")
+            if not re.fullmatch(r"MLB\d+", str(pid)) or pid in seen_products:
                 continue
+            seen_products.add(pid)
             try:
+                product = self._catalog_get("/products/" + pid, "catalog_product")
+                if not isinstance(product, dict) or product.get("id") != pid:
+                    raise SourceError("invalid_response", "Detalhe de catálogo não confirmou o produto solicitado")
+                if (product.get("status") != "active"
+                        or category_for(product.get("name", "")) != category):
+                    continue
                 items = self._catalog_items(pid)
             except SourceError as exc:
                 if exc.state == "not_found":
                     continue
                 raise
+            groups = [[], [], []]
             for item in items:
                 iid = item.get("item_id", "")
-                if not re.fullmatch(r"MLB\d+", str(iid)) or item.get("site_id") != "MLB":
+                if (not re.fullmatch(r"MLB\d+", str(iid)) or item.get("site_id") != "MLB"
+                        or item.get("currency_id") != "BRL"
+                        or type(item.get("seller_id")) is not int or item["seller_id"] <= 0):
                     continue
                 minimum = item.get("min_purchase_unit", 1)
                 if type(minimum) is not int or minimum != 1 or item.get("condition") != "new":
@@ -172,12 +210,31 @@ class MercadoLivreSource:
                 official = item.get("official_store_id")
                 if type(official) is not int or official <= 0:
                     continue
+                try:
+                    if cents(item.get("price")) <= 0:
+                        continue
+                except ValueError:
+                    continue
+                available, _ = catalog_availability(item, product)
                 url = "https://www.mercadolivre.com.br/p/" + pid + "?" + urlencode({"pdp_filters": "item_id:" + iid})
-                found[iid] = {"id": "ml-" + iid, "store": self.store, "url": url,
-                              "catalog_id": pid, "category": category, "enabled": True,
-                              "source": self.mode, "title_hint": product["name"], "discovered": True}
-                if len(found) >= limit:
-                    return list(found.values())
+                entry = {"id": "ml-" + iid, "store": self.store, "url": url,
+                         "catalog_id": pid, "category": category, "enabled": True,
+                         "source": self.mode, "title_hint": product["name"], "discovered": True,
+                         "availability_verified": available}
+                tier = 0 if catalog_winner_available(item, product) else 1 if available else 2
+                groups[tier].append(entry)
+            for tier, group in zip(tiers, groups):
+                if group:
+                    tier.append(group)
+        found = {}
+        for tier in tiers:
+            for index in range(max((len(group) for group in tier), default=0)):
+                for group in tier:
+                    if index < len(group):
+                        entry = group[index]
+                        found.setdefault(entry["id"], entry)
+                        if len(found) >= limit:
+                            return list(found.values())
         return list(found.values())
 
     def _catalog_items(self, pid):
@@ -210,22 +267,9 @@ class MercadoLivreSource:
         price = cents(item.get("price"))
         if price <= 0:
             raise SourceError("invalid_response", "Preço inválido")
-        quantity = item.get("available_quantity")
         # Quantidade pode ser privada para terceiros. Um winner só serve como
         # evidência quando corresponde ao mesmo anúncio, vendedor, moeda e preço.
-        available = (item.get("status") == "active" and item.get("condition") == "new"
-                     and type(quantity) in (int, float) and quantity > 0)
-        availability_evidence = "quantity" if available else "unknown"
-        winner = product.get("buy_box_winner")
-        if not available and isinstance(winner, dict) and item.get("status") in (None, "active"):
-            winner_quantity = winner.get("available_quantity")
-            available = (winner.get("item_id") == item["item_id"] and winner.get("seller_id") == seller
-                         and winner.get("currency_id") == "BRL" and winner.get("price") == item.get("price")
-                         and type(winner_quantity) in (int, float) and winner_quantity > 0
-                         and item.get("condition") == "new"
-                         and (quantity is None or (type(quantity) in (int,float) and quantity > 0)))
-            if available:
-                availability_evidence = "buy_box_winner"
+        available, availability_evidence = catalog_availability(item, product)
         return Offer(self.store, key, product["name"], str(seller), price, None,
                      "Preço do anúncio no catálogo; confira pagamento na loja", available, entry["url"], False,
                      source=self.mode, observed_at=datetime.now(timezone.utc).isoformat(),

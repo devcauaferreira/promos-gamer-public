@@ -14,6 +14,18 @@ def configure(limit=None):
     if not raw:
         raise ValueError("Cadastre PROMOS_SETTINGS_JSON nos secrets do GitHub")
     settings = json.loads(raw)
+    # A public workflow variable can adjust the threshold without rewriting the
+    # encrypted settings secret. The secret remains the source of all other
+    # configuration values.
+    raw_discount = secret("PROMOS_MINIMUM_DISCOUNT")
+    if raw_discount:
+        try:
+            discount = float(raw_discount)
+        except ValueError:
+            raise ValueError("PROMOS_MINIMUM_DISCOUNT invÃ¡lido") from None
+        if not 0 < discount < 100:
+            raise ValueError("PROMOS_MINIMUM_DISCOUNT deve estar entre 0 e 100")
+        settings["minimum_discount_percent"] = discount
     if limit is not None:
         if not 1 <= limit <= 500:
             raise ValueError("O limite do ciclo deve estar entre 1 e 500")

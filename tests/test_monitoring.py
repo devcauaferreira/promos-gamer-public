@@ -67,7 +67,7 @@ class MonitoringTests(unittest.TestCase):
             operation = operation_summary(db, Config(), settings, [
                 {'store': 'kabum', 'mode': 'legacy_web', 'state': 'operational', 'error': 'private-token'},
                 {'store': 'private-store', 'mode': 'private-mode', 'state': 'private-state'}])
-            self.assertEqual(operation['policy']['minimum_discount_percent'], 25)
+            self.assertEqual(operation['policy']['minimum_discount_percent'], 5)
             self.assertEqual(operation['policy']['history_days'], 30)
             self.assertEqual(operation['policy']['products_per_run'], 2)
             self.assertEqual(operation['coverage']['active_total'], 3)

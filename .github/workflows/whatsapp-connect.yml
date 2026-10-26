@@ -64,6 +64,7 @@ jobs:
           WHATSAPP_SESSION_KEY: ${{ secrets.WHATSAPP_SESSION_KEY }}
           PROMOS_SETTINGS_JSON: ${{ secrets.PROMOS_SETTINGS_JSON }}
           PROMOS_PRODUCTS_JSON: ${{ secrets.PROMOS_PRODUCTS_JSON }}
+          PROMOS_MINIMUM_DISCOUNT: ${{ vars.PROMOS_MINIMUM_DISCOUNT }}
         run: |
           if [ "$VERIFY_ONLY" = "true" ]; then
             python -m services.public_job verify

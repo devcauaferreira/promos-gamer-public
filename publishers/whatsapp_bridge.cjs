@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const readline = require('node:readline');
-const { Client, LocalAuth, RemoteAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const root = path.resolve(__dirname, '..');
 const tokenFile = path.join(root, '.bridge_token');
@@ -165,17 +165,24 @@ const server = http.createServer(async (req, res) => {
       let raw = '';
       for await (const chunk of req) {
         raw += chunk;
-        if (Buffer.byteLength(raw) > 16000) return respond(res, 413, {error:'Mensagem muito grande'});
+        if (Buffer.byteLength(raw) > 4_100_000) return respond(res, 413, {error:'Mensagem muito grande'});
       }
-      const {group_id, message} = JSON.parse(raw);
+      const {group_id, message, image} = JSON.parse(raw);
       const settings = JSON.parse(fs.readFileSync(path.join(root, 'settings.json'), 'utf8'));
       if (!group_id || group_id !== settings.whatsapp_group_id || !group_id.endsWith('@g.us'))
         return respond(res, 400, {error:'Grupo diferente do configurado'});
       if (typeof message !== 'string' || !message.trim() || message.length > 4000)
         return respond(res, 400, {error:'Mensagem inválida'});
+      if (image && (typeof image.data !== 'string' || image.data.length > 4_000_000 ||
+          !['image/jpeg','image/png','image/webp'].includes(image.mimetype) ||
+          !/^[A-Za-z0-9+/]+={0,2}$/.test(image.data)))
+        return respond(res, 400, {error:'Imagem inválida'});
       if (!(await listGroups()).some(chat => chat.id === group_id))
         return respond(res, 400, {error:'Grupo não encontrado na sessão conectada'});
-      const sent = await client.sendMessage(group_id, message, {sendSeen: false,waitUntilMsgSent:true});
+      const sent = image
+        ? await client.sendMessage(group_id, new MessageMedia(image.mimetype, image.data),
+            {caption:message,sendSeen:false,waitUntilMsgSent:true})
+        : await client.sendMessage(group_id, message, {sendSeen:false,waitUntilMsgSent:true});
       const message_id = await require('./message_confirmation.cjs').confirmedMessageId(sent);
       return respond(res, 200, { message_id });
     } finally { busy = false; }

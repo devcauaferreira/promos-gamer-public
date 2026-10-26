@@ -182,6 +182,14 @@ sem revisar seus dados, como os identificadores públicos dos anúncios.
 
 ## Operação e verificação
 
+Mensagens de ofertas aprovadas usam título, preço atual, média real dos sete dias
+anteriores, percentual de queda e link direto da loja. Quando a KaBuM fornece
+foto oficial correspondente ao produto, ela é enviada com a mensagem como legenda;
+se a foto falhar antes do envio, segue apenas o texto. A imagem do exemplo de
+terceiros não é reutilizada e o preço riscado anunciado não vira referência.
+O agendamento do GitHub é configurado a cada cinco minutos, mas pode atrasar
+ou perder eventos; confirme execuções com evento `schedule` na aba Actions.
+
 Na nuvem, `.github/workflows/promos.yml` executa `cloud_run.py` uma vez por job.
 O estado é persistido privadamente no Supabase antes e após envios. A conexão do
 WhatsApp pode usar `whatsapp_cloud_job.py`: o job restaura a sessão RemoteAuth,

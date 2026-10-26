@@ -142,7 +142,7 @@ def dispatch(db, offer, message, config, group, checkpoint=None):
     try:
         if checkpoint:
             checkpoint(db)
-        message_id = publish(message, group)
+        message_id = publish(message, group, image_url=offer.image_url)
         mark_published(db, offer, channel, now)
         db.execute("UPDATE dispatches SET state='sent', message_id=? WHERE store=? AND product_id=? AND channel=?",
                    (message_id, offer.store, offer.product_id, channel))

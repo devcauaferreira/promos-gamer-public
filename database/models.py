@@ -20,6 +20,7 @@ class Offer:
     price_basis: str = "legacy_page_price"
     official_store_id: int | None = None
     shipped_by: str = ""
+    image_url: str = ""
 
     @property
     def total_cents(self):

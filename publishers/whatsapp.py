@@ -1,5 +1,6 @@
 import json
 import os
+import base64
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.parse import urlparse
@@ -36,7 +37,30 @@ def validate_publish_bridge():
     return "http://127.0.0.1:8787"
 
 
-def publish(message, group_id):
+def product_image(image_url):
+    """Obtém apenas fotos oficiais da KaBuM, com limite de tamanho e sem redirecionar."""
+    parsed = urlparse(image_url)
+    if (parsed.scheme != "https" or parsed.hostname != "images.kabum.com.br"
+            or not parsed.path.startswith("/produtos/fotos/") or parsed.query or parsed.fragment
+            or parsed.username or parsed.password):
+        return None
+    from services.http_client import NoRedirect
+    from urllib.request import build_opener
+    request = Request(image_url, headers={"Accept": "image/jpeg,image/png,image/webp"})
+    try:
+        with build_opener(NoRedirect()).open(request, timeout=15) as response:
+            mime = response.headers.get_content_type()
+            if mime not in ("image/jpeg", "image/png", "image/webp"):
+                return None
+            data = response.read(3_000_001)
+            if not data or len(data) > 3_000_000:
+                return None
+            return {"mimetype": mime, "data": base64.b64encode(data).decode("ascii")}
+    except (OSError, ValueError):
+        return None
+
+
+def publish(message, group_id, image_url=""):
     token = bridge_token()
     if len(token) < 24:
         raise ValueError("Defina WHATSAPP_BRIDGE_TOKEN com pelo menos 24 caracteres")
@@ -45,8 +69,13 @@ def publish(message, group_id):
     base_url = "http://127.0.0.1:8787" if runner_bridge() else (validate_remote_bridge() if secret("WHATSAPP_BRIDGE_URL") else "http://127.0.0.1:8787")
     if os.environ.get("GITHUB_ACTIONS") == "true" and not runner_bridge() and not secret("WHATSAPP_BRIDGE_URL"):
         raise ValueError("Configure uma ponte externa HTTPS antes de publicar pelo GitHub Actions")
+    payload = {"group_id": group_id, "message": message}
+    if image_url:
+        photo = product_image(image_url)
+        if photo:
+            payload["image"] = photo
     request = Request(base_url + "/send",
-                      data=json.dumps({"group_id": group_id, "message": message}).encode(),
+                      data=json.dumps(payload).encode(),
                       headers={"Content-Type": "application/json", "Authorization": "Bearer " + token},
                       method="POST")
     from services.http_client import NoRedirect

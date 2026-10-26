@@ -5,14 +5,14 @@ def money(cents):
 def build_message(offer, decision):
     from services.niche import CATEGORIES, category_for
     category = category_for(offer.title)
-    lines = ([CATEGORIES[category]] if category else []) + [offer.title,
-             f"Loja: {offer.store} | Vendedor: {offer.seller_id}",
-             f"Preço: {money(offer.price_cents)}"]
-    lines.append("Frete não incluído. Consulte a entrega na loja.")
-    lines.append(f"Pagamento: {offer.payment_terms}")
+    lines = [f"🔥 *OFERTA DE {CATEGORIES[category].upper()}*" if category else "🔥 *OFERTA GAMER*",
+             "", f"*{offer.title}*", ""]
     if decision.average_cents is not None:
-        lines.extend([f"Média histórica do produto: {money(decision.average_cents)}",
-                      f"Queda sobre a média: {decision.discount_percent:.1f}%".replace(".", ",")])
-    lines.append("Preço e disponibilidade podem mudar. Confira antes de comprar.")
-    lines.append(offer.affiliate_url)
+        lines.append(f"📉 Média dos últimos 7 dias: {money(decision.average_cents)}")
+    lines.append(f"💥 *Agora: {money(offer.price_cents)}*")
+    if decision.average_cents is not None:
+        lines.append(f"⬇️ {decision.discount_percent:.1f}% abaixo da média".replace(".", ","))
+    lines.extend(["", f"🏬 {offer.store.title()} | Vendido por {offer.seller_id}",
+                  f"💳 {offer.payment_terms}", "", "🛒 *Compre aqui:*", offer.affiliate_url,
+                  "", "Frete não incluído. Confira preço e disponibilidade na loja."])
     return "\n".join(lines)

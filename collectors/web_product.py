@@ -65,10 +65,14 @@ def parse_product(html, entry):
                 if re.search(r"vista\s+no\s+PIX", soup.get_text(" ", strip=True), re.I):
                     price = prices["priceWithDiscount"]
                     payment = "À vista no PIX"
+                photo = soup.select_one('meta[property="og:image"]')
+                image_url = photo.get("content", "") if photo else ""
+                if not image_url.startswith(f"https://images.kabum.com.br/produtos/fotos/{code.group(1)}/"):
+                    image_url = ""
                 return Offer(entry["store"], entry["id"], product["title"],
                              product.get("sellerName", ""), cents(price), None, payment,
                              product.get("available") is True, entry["url"], False,
-                             shipped_by=kabum_shipped_by(soup, product.get("sellerName", "")))
+                             shipped_by=kabum_shipped_by(soup, product.get("sellerName", "")), image_url=image_url)
             except (KeyError, TypeError, json.JSONDecodeError) as exc:
                 raise ValueError("Formato da página KaBuM mudou; revisão necessária") from exc
     products = []

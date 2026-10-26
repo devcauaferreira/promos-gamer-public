@@ -1,5 +1,11 @@
 # Hospedagem automática do Promos Gamer
 
+**Decisão posterior do usuário:** continuar no GitHub Actions. Foi implementado
+encadeamento com token temporário do próprio job, controle de intervalo e
+variáveis de interrupção. A operação está descrita em [DEPLOY.md](DEPLOY.md).
+A análise abaixo preserva as recomendações e limitações pesquisadas; não foi
+contratado outro provedor e o disparador Supabase→Actions permanece inativo.
+
 Pesquisa em 25/10/2026, com documentação oficial. A recomendação é executar uma
 única instância contínua em Docker, numa VPS ou num worker gerenciado. GitHub
 Actions fica com testes, build e implantação. Supabase mantém o callback HTTPS,

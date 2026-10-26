@@ -1,9 +1,13 @@
 # Promos gamer — grupo do WhatsApp
 
-O projeto está configurado no GitHub Actions para iniciar um ciclo a cada 5 minutos.
+O monitor usa GitHub Actions com rodadas encadeadas a cada 5 minutos. Cada job
+cria a próxima rodada com seu token temporário; `self_chain` identifica os disparos
+automáticos no estado privado. `PROMOS_CHAIN_ENABLED` controla a continuação.
 A sessão WhatsApp da nuvem foi conectada, salva com criptografia e restaurada em
 outro runner; uma mensagem de teste recebeu confirmação do servidor. O computador
 pode ficar desligado. Veja [DEPLOY.md](DEPLOY.md) para operação e reconexão.
+`python status-cloud.py` mostra o horário do último ciclo, quantidades avaliadas,
+envios confirmados e motivos dos filtros, sem precisar existir promoção aprovada.
 
 As promoções só são enviadas quando houver histórico e desconto suficientes,
 disponibilidade confirmada e vendedor dentro das regras. Hoje a KaBuM coleta;

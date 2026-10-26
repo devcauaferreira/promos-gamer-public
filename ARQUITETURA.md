@@ -4,7 +4,8 @@ Uma comparação com o projeto [price-alert-bot](REVISAO_PRICE_ALERT_BOT.md)
 registra as práticas aproveitadas e os limites do catálogo do Mercado Livre.
 A [pesquisa de hospedagem](HOSPEDAGEM.md) recomenda migrar a execução de produção
 para um worker contínuo, usando Actions para testes e implantação. Essa migração
-ainda não foi realizada.
+ainda não foi realizada. Por decisão do usuário, a execução continua no Actions
+com rodadas `self_chain` iniciadas pelo token temporário do job.
 
 A aplicação continua voltada a compartilhar promoções sem afiliação, sem frete
 e sem acesso de escrita às lojas. Histórico, vendedores aprovados e publicação
@@ -219,8 +220,9 @@ Jobs de conexão e monitor compartilham o mesmo grupo de concorrência. O agenda
 não mantém o WhatsApp conectado entre execuções e pode exigir nova autorização.
 O histórico foi migrado e o monitor local foi encerrado. Coleta e publicação estão
 configuradas no Actions a cada 5 minutos, somente para ofertas aprovadas. Ainda
-não houve evento `schedule` observado; o cron configurado não comprova execução
-automática. Cada coleta
+não houve evento `schedule` observado; o monitor usa `self_chain`, com uma rodada
+registrando a próxima por `workflow_dispatch` e respeitando o horário mínimo.
+O estado `monitor_runs` comprova quando a coleta realmente ocorreu. Cada coleta
 verifica até 20 produtos descobertos em rodízio e só restaura a sessão WhatsApp
 quando encontra uma oferta aprovada. O teste real
 recebeu confirmação do servidor; envio sem ACK não é registrado como sucesso.

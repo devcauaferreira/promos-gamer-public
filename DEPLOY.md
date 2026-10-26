@@ -1,10 +1,35 @@
 # GitHub Actions + callback HTTPS do Mercado Livre
 
 **Recomendação de hospedagem revista:** consulte [HOSPEDAGEM.md](HOSPEDAGEM.md).
-Para produção, recomendamos um worker contínuo em VPS/Docker ou plataforma
-gerenciada. O caminho Actions abaixo registra a implementação existente e seus
-testes; o disparador Supabase→Actions permanece inativo e não é a recomendação
-atual para hospedar o bot.
+O usuário optou por continuar no GitHub Actions. O modo implementado usa
+encadeamento explícito de rodadas com o `GITHUB_TOKEN` temporário, sem PAT pessoal.
+As limitações de finalidade e disponibilidade do serviço registradas na pesquisa
+continuam aplicáveis; este modo não oferece garantia de horário exato ou SLA.
+
+## Rodadas automáticas sem token pessoal
+
+`PROMOS_CHAIN_ENABLED=true` faz cada job chamar `workflow_dispatch` para criar
+uma única próxima rodada, marcada `self_chain`. O próximo job recebe um horário
+mínimo de execução e aguarda o intervalo de cinco minutos. O grupo de concorrência
+impede execução paralela do monitor e do WhatsApp. A sucessora é criada antes da
+coleta: uma falha posterior não remove a continuação já registrada.
+
+O token temporário tem `actions: write` e `contents: read` neste repositório e é
+fornecido somente à etapa de continuação. Não é armazenado no Supabase, `.env`,
+banco ou relatórios. Esse uso de `workflow_dispatch` com `GITHUB_TOKEN` é
+[documentado pelo GitHub](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+Não execute `configurar-agendador.cmd` para este modo: o disparador Supabase
+permanece inativo. O cron nativo não executa o monitor enquanto o encadeamento
+estiver habilitado, evitando dois relógios simultâneos.
+
+Para pausar os próximos ciclos, defina `PROMOS_CLOUD_ENABLED=false` e
+`PROMOS_CHAIN_ENABLED=false` nas Variables do Actions; cancele jobs pendentes ou
+em andamento se precisar de interrupção imediata. `ENABLE_WHATSAPP_PUBLISH=false`
+interrompe apenas publicações. Para retomar após interrupção da cadeia, habilite
+as variáveis e execute manualmente `Promos Gamer` uma vez. Falha de infraestrutura
+antes de registrar a sucessora pode exigir esse reinício manual.
+`status-cloud.py` mostra o horário real de coleta e a origem `self_chain`.
+Uma rodada pendente no Actions é esperada enquanto outra estiver ativa.
 
 O código pode ficar em um repositório público. Credenciais, identificadores da
 instalação, grupo WhatsApp e cadastro privado ficam nos Secrets do Actions;

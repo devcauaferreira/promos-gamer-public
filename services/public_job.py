@@ -27,10 +27,11 @@ def safe_summary():
     print(f"Produtos avaliados: {len(offers)}; ofertas aprovadas: {approved}; sem histórico anterior: {no_history}", flush=True)
 
 
-def run_job(mode, limit=20, send_test=False):
+def run_job(mode, limit=20, send_test=False, send_preview=False):
     if mode not in ("collect", "publish", "connect"):
         raise ValueError("Tarefa não suportada")
-    if not 1 <= limit <= 500 or (send_test and mode != "connect"):
+    if (not 1 <= limit <= 500 or ((send_test or send_preview) and mode != "connect")
+            or (send_test and send_preview)):
         raise ValueError("Opções inválidas")
     if mode == "collect":
         command = [sys.executable, "cloud_run.py", "--check-candidates", "--limit", str(limit)]
@@ -40,6 +41,8 @@ def run_job(mode, limit=20, send_test=False):
         command = [sys.executable, "whatsapp_cloud_job.py", "--connect"]
         if send_test:
             command.append("--test")
+        if send_preview:
+            command.append("--preview")
     # Não enviar este arquivo a artifacts/caches: pode conter dados privados.
     # O runner é efêmero; banco e sessão continuam persistidos no Supabase.
     folder = Path("reports")
@@ -64,9 +67,10 @@ if __name__ == "__main__":
     parser.add_argument("mode", choices=("collect", "publish", "connect"))
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--test", action="store_true")
+    parser.add_argument("--preview", action="store_true")
     args = parser.parse_args()
     try:
-        code = run_job(args.mode, args.limit, args.test)
+        code = run_job(args.mode, args.limit, args.test, args.preview)
     except Exception:
         # Mensagens de exceção podem conter URLs, credenciais e IDs privados.
         print("Não foi possível executar a tarefa. Consulte a configuração em ambiente privado.", flush=True)

@@ -6,6 +6,10 @@ on:
         description: Enviar uma mensagem técnica de teste ao grupo configurado (não é oferta)
         type: boolean
         default: false
+      send_preview:
+        description: Enviar uma prévia única de produto real sem afirmar desconto
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -18,6 +22,7 @@ jobs:
     env:
       PYTHONUNBUFFERED: '1'
       SEND_TEST: ${{ inputs.send_test }}
+      SEND_PREVIEW: ${{ inputs.send_preview }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -43,7 +48,9 @@ jobs:
           PROMOS_SETTINGS_JSON: ${{ secrets.PROMOS_SETTINGS_JSON }}
           PROMOS_PRODUCTS_JSON: ${{ secrets.PROMOS_PRODUCTS_JSON }}
         run: |
-          if [ "$SEND_TEST" = "true" ]; then
+          if [ "$SEND_PREVIEW" = "true" ]; then
+            python -m services.public_job connect --preview
+          elif [ "$SEND_TEST" = "true" ]; then
             python -m services.public_job connect --test
           else
             python -m services.public_job connect

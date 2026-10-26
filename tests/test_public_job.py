@@ -38,6 +38,9 @@ class PublicJobTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 run_job("publish", send_test=True)
             run.assert_not_called()
+            with self.assertRaises(ValueError):
+                run_job("connect", send_test=True, send_preview=True)
+            run.assert_not_called()
 
     def test_safe_summary_omits_private_offer_details(self):
         import json

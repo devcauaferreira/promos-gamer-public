@@ -7,8 +7,9 @@ import unittest
 from unittest.mock import Mock, patch
 
 from whatsapp_cloud_job import run
-from whatsapp_cloud_job import send_test_once
+from whatsapp_cloud_job import send_test_once, send_preview_once
 from config import Config
+from database.models import Offer
 
 
 class WhatsAppJobTests(unittest.TestCase):
@@ -66,4 +67,54 @@ class WhatsAppJobTests(unittest.TestCase):
                     with self.assertRaises(RuntimeError): send_test_once(config)
                 publish.assert_called_once()
                 state.return_value.checkpoint.assert_called_once()
+            finally: os.chdir(previous)
+
+    @patch.dict('os.environ', {'GITHUB_RUN_ID':'1234'})
+    @patch('services.cloud.CloudState')
+    @patch('collectors.registry.LazyBrowser')
+    @patch('collectors.registry.build_sources')
+    @patch('publishers.whatsapp.publish', return_value='confirmed-message')
+    def test_real_preview_is_labeled_and_sent_only_once(self, publish, sources, browser, state):
+        previous = Path.cwd()
+        with tempfile.TemporaryDirectory() as folder:
+            os.chdir(folder)
+            try:
+                Path('settings.json').write_text(json.dumps({'whatsapp_group_id':'test@g.us'}))
+                Path('products.json').write_text(json.dumps([{'store':'kabum','id':'kabum-1','enabled':True}]))
+                offer = Offer('kabum','kabum-1','Kit Upgrade AMD Ryzen 5 5500','KaBuM!',97999,None,
+                              'PIX',True,'https://www.kabum.com.br/produto/1',False,shipped_by='KaBuM!')
+                sources.return_value['kabum'].collect.return_value = offer
+                config = Config(database_path=Path('test.sqlite3'))
+                send_preview_once(config)
+                with patch.dict('os.environ', {'GITHUB_RUN_ID':'5678'}):
+                    send_preview_once(config)
+                publish.assert_called_once()
+                message = publish.call_args.args[0]
+                self.assertIn('Não é uma promoção aprovada', message)
+                self.assertIn('R$ 979,99', message)
+                self.assertIn('https://www.kabum.com.br/produto/1', message)
+                self.assertEqual(state.return_value.checkpoint.call_count, 2)
+                browser.return_value.close.assert_called_once()
+            finally: os.chdir(previous)
+
+    @patch.dict('os.environ', {'GITHUB_RUN_ID':'1234'})
+    @patch('services.cloud.CloudState')
+    @patch('collectors.registry.LazyBrowser')
+    @patch('collectors.registry.build_sources')
+    @patch('publishers.whatsapp.publish', side_effect=TimeoutError('uncertain'))
+    def test_uncertain_preview_is_not_retried(self, publish, sources, browser, state):
+        previous = Path.cwd()
+        with tempfile.TemporaryDirectory() as folder:
+            os.chdir(folder)
+            try:
+                Path('settings.json').write_text(json.dumps({'whatsapp_group_id':'test@g.us'}))
+                Path('products.json').write_text(json.dumps([{'store':'kabum','id':'kabum-1','enabled':True}]))
+                sources.return_value['kabum'].collect.return_value = Offer(
+                    'kabum','kabum-1','Kit Upgrade AMD Ryzen 5 5500','KaBuM!',97999,None,'PIX',True,
+                    'https://www.kabum.com.br/produto/1',False,shipped_by='KaBuM!')
+                config = Config(database_path=Path('test.sqlite3'))
+                with self.assertRaises(TimeoutError): send_preview_once(config)
+                with patch.dict('os.environ', {'GITHUB_RUN_ID':'5678'}):
+                    send_preview_once(config)
+                publish.assert_called_once()
             finally: os.chdir(previous)

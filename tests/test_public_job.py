@@ -35,6 +35,8 @@ class PublicJobTests(unittest.TestCase):
             self.assertEqual(safe_failure_code(log), "supabase_state_conflict")
             log.write_text("Traceback (most recent call last): RuntimeError: arbitrary private token content", encoding="utf-8")
             self.assertEqual(safe_failure_code(log), "child_exception")
+            log.write_text("SessÃ£o da nuvem precisa de autorizaÃ§Ã£o.", encoding="utf-8")
+            self.assertEqual(safe_failure_code(log), "whatsapp_reauthorization_required")
             self.assertEqual(safe_failure_code(Path(folder) / "missing.log"), "child_failed")
 
     def test_collect_never_requests_sending(self):

@@ -62,6 +62,8 @@ def safe_failure_code(log_path):
         ("banco local existente", "remote_state_missing"),
         ("Snapshot remoto", "remote_snapshot_invalid"),
         ("remota inesperada", "supabase_state_conflict"),
+        ("nuvem precisa de autoriza", "whatsapp_reauthorization_required"),
+        ("Falha na autenticação", "whatsapp_auth_failure"),
         ("ficou pronto no prazo", "whatsapp_session_not_ready"),
         ("Ponte encerrou", "whatsapp_bridge_stopped"),
         ("Nenhuma foto de produto validado disponível", "media_image_missing"),

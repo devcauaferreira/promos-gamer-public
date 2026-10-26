@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from services.public_job import run_job, safe_summary
+from services.public_job import run_job, safe_failure_code, safe_summary
 
 
 class PublicJobTests(unittest.TestCase):
@@ -23,9 +23,19 @@ class PublicJobTests(unittest.TestCase):
                     self.assertEqual(run_job("publish", 5), 1)
                 self.assertNotIn("private-token", output.getvalue())
                 self.assertIn("falhou", output.getvalue())
+                self.assertIn("child_failed", output.getvalue())
                 self.assertEqual(Path("reports/cloud-job-private.log").read_bytes(), b"private-token-and-group-details")
             finally:
                 os.chdir(previous)
+
+    def test_safe_failure_code_classifies_only_allowlisted_markers(self):
+        with tempfile.TemporaryDirectory() as folder:
+            log = Path(folder) / "private.log"
+            log.write_text("RuntimeError: Função Supabase retornou HTTP 409; private-token=secret", encoding="utf-8")
+            self.assertEqual(safe_failure_code(log), "supabase_state_conflict")
+            log.write_text("Traceback (most recent call last): RuntimeError: arbitrary private token content", encoding="utf-8")
+            self.assertEqual(safe_failure_code(log), "child_exception")
+            self.assertEqual(safe_failure_code(Path(folder) / "missing.log"), "child_failed")
 
     def test_collect_never_requests_sending(self):
         with patch("services.public_job.Path.mkdir"), patch("services.public_job.Path.open"), patch("services.public_job.subprocess.run", return_value=Mock(returncode=0)) as run:

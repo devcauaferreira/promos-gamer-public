@@ -47,6 +47,42 @@ def safe_summary():
         print(f'Falha de entrega: {code}; tentativas: {count}', flush=True)
 
 
+def safe_failure_code(log_path):
+    """Classify a private child log into a fixed, non-sensitive diagnostic code."""
+    try:
+        text = Path(log_path).read_text(encoding="utf-8", errors="replace")[-200_000:]
+    except OSError:
+        return "child_failed"
+    known = (
+        ("HTTP 409", "supabase_state_conflict"),
+        ("HTTP 401", "supabase_auth_http_401"),
+        ("HTTP 403", "supabase_auth_http_403"),
+        ("HTTP 429", "supabase_rate_limited"),
+        ("Falha ao consultar", "supabase_network_error"),
+        ("banco local existente", "remote_state_missing"),
+        ("Snapshot remoto", "remote_snapshot_invalid"),
+        ("remota inesperada", "supabase_state_conflict"),
+        ("ficou pronto no prazo", "whatsapp_session_not_ready"),
+        ("Ponte encerrou", "whatsapp_bridge_stopped"),
+        ("Nenhuma foto de produto validado disponível", "media_image_missing"),
+        ("Foto indisponível antes do envio", "media_image_missing"),
+    )
+    for phrase, code in known:
+        if phrase in text:
+            return code
+    if "whatsapp_confirmation_missing" in text:
+        return "whatsapp_confirmation_missing"
+    if "whatsapp_send_failed" in text:
+        return "whatsapp_send_failed"
+    if "HTTP Error 409" in text:
+        return "supabase_state_conflict"
+    if "HTTP Error 401" in text or "HTTP Error 403" in text:
+        return "remote_service_auth_error"
+    if "Traceback (most recent call last)" in text:
+        return "child_exception"
+    return "child_failed"
+
+
 def run_job(mode, limit=20, send_test=False, send_preview=False, send_media_test=False):
     if mode not in ("collect", "publish", "connect", "verify"):
         raise ValueError("Tarefa não suportada")
@@ -90,6 +126,7 @@ def run_job(mode, limit=20, send_test=False, send_preview=False, send_media_test
         except (OSError, ValueError, TypeError):
             print("Resumo indisponível; dados detalhados mantidos no runner.", flush=True)
     if result.returncode:
+        print(f"Diagnóstico seguro da tarefa: {safe_failure_code(folder / 'cloud-job-private.log')}", flush=True)
         print(f"Tarefa {mode} falhou. Execute o diagnóstico em ambiente privado.", flush=True)
         return 1
     print(f"Tarefa {mode} concluída.", flush=True)

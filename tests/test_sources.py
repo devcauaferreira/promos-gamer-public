@@ -110,6 +110,7 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(offer.seller_id, "42")
             self.assertEqual(offer.source, "official_api")
             self.assertTrue(offer.available)
+            self.assertEqual(offer.availability_evidence, "quantity")
             client.get.assert_called_once()
             item["min_purchase_unit"] = 2
             self.assertFalse(source.collect(entry).available)

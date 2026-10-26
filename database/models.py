@@ -21,6 +21,7 @@ class Offer:
     official_store_id: int | None = None
     shipped_by: str = ""
     image_url: str = ""
+    availability_evidence: str = ""
 
     @property
     def total_cents(self):

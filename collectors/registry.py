@@ -58,6 +58,9 @@ def build_sources(db, settings, browser):
             source = MercadoLivreSource(db, options)
         elif mode == "authorized_feed":
             source = feeds[store](options) if store in feeds else AuthorizedFeed(store, options)
+        elif mode == 'public_catalog_review' and store == 'amazon':
+            from collectors.amazon_public import AmazonPublicReview
+            source = AmazonPublicReview(db, options)
         elif mode == "legacy_web" and store == "kabum":
             source = KabumSource(db, browser)
         else:

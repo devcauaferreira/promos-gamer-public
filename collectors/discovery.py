@@ -83,6 +83,8 @@ def discover(db, browser, settings, force=False, sources=None):
     blocked = {}
     for store in options.get("stores", list(SEARCHES)):
         source = sources[store]
+        source_version = getattr(source, 'discovery_version', None)
+        source_version = source_version if isinstance(source_version, str) else None
         for category in options.get("categories", list(CATEGORIES)):
             health = source.status()
             if "error" in health:
@@ -102,7 +104,8 @@ def discover(db, browser, settings, force=False, sources=None):
                            "found": db.execute("SELECT COUNT(*) FROM tracked_products WHERE store=? AND category=?", (store, category)).fetchone()[0]}
                 empty_web_result = (source.mode == "legacy_web" and row.get("status") == "ok"
                                     and row.get("found") == 0)
-                if row.get("source") == source.mode and not empty_web_result:
+                if (row.get("source") == source.mode and not empty_web_result
+                        and (source_version is None or row.get('discovery_version') == source_version)):
                     row.update(cached=True, checked_at=previous[0])
                     report.append(row)
                     continue
@@ -114,6 +117,8 @@ def discover(db, browser, settings, force=False, sources=None):
                 db.commit()
                 continue
             row = {"store": store, "category": category, "source": source.mode, "checked_at": now.isoformat()}
+            if source_version is not None:
+                row['discovery_version'] = source_version
             try:
                 entries = source.search(category, int(options.get("products_per_category", 5)))
                 for entry in entries:

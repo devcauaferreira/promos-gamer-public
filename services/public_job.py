@@ -17,7 +17,8 @@ def safe_summary():
     allowed_stores = {"kabum", "mercadolivre", "amazon", "magalu", "pichau"}
     allowed_states = {"operational", "ready_to_validate", "needs_authorized_feed",
                       "feed_missing", "oauth_pending", "needs_credentials", "disabled",
-                      "access_denied", "rate_limited", "backoff"}
+                      "access_denied", "rate_limited", "backoff", "review_only",
+                      "temporarily_unavailable", "network_error", "auth_required"}
     for row in sources:
         store, state = row.get("store"), row.get("state")
         if store in allowed_stores:
@@ -27,6 +28,8 @@ def safe_summary():
     print(f"Produtos avaliados: {len(offers)}; ofertas aprovadas: {approved}; sem histórico anterior: {no_history}", flush=True)
     from services.monitoring import summarize
     summary = summarize(offers)
+    for store, count in summary['observations'].items():
+        print(f"Observações registradas {store}: {count}", flush=True)
     print(f"Envios confirmados: {summary['sent']}; erros: {summary['errors']}; pendências de persistência: {summary['persistence_errors']}", flush=True)
     for reason, count in summary['reasons'].items():
         print(f"Filtro: {reason}; produtos: {count}", flush=True)

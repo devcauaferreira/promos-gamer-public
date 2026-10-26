@@ -100,6 +100,21 @@ class DiscoveryTests(unittest.TestCase):
             row = db.execute("SELECT status FROM discovery_runs WHERE store='amazon' AND category='ssd'").fetchone()[0]
             self.assertIn('needs_authorized_feed', row)
 
+    def test_collector_version_change_refreshes_cached_discovery(self):
+        source = Mock()
+        source.mode = 'official_catalog'
+        source.discovery_version = 'v1'
+        source.status.return_value = {'state': 'ready_to_validate'}
+        source.search.return_value = []
+        settings = {'discovery': {'stores': ['mercadolivre'], 'categories': ['fonte']}}
+        with closing(connect(':memory:')) as db:
+            discover(db, Mock(), settings, sources={'mercadolivre': source})
+            self.assertTrue(discover(db, Mock(), settings, sources={'mercadolivre': source})[0]['cached'])
+            self.assertEqual(source.search.call_count, 1)
+            source.discovery_version = 'v2'
+            self.assertNotIn('cached', discover(db, Mock(), settings, sources={'mercadolivre': source})[0])
+            self.assertEqual(source.search.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

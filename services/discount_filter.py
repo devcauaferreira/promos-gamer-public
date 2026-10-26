@@ -26,7 +26,8 @@ def evaluate(db, offer, config, now, channel="whatsapp"):
     if seller_reason:
         reasons.append(seller_reason)
     if not offer.available:
-        reasons.append("Oferta indisponível")
+        reasons.append("Disponibilidade não confirmada" if offer.availability_evidence in ('unknown', 'review_bundle_only')
+                       else "Oferta indisponível")
     if offer.price_cents <= 0 or (config.include_shipping and (offer.shipping_cents is None or offer.shipping_cents < 0)):
         reasons.append("Preço ou frete inválido/desconhecido")
     if not offer.payment_terms.strip():

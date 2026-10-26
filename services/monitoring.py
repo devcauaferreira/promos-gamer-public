@@ -5,16 +5,19 @@ from datetime import datetime, timezone
 
 REASONS = ('Histórico insuficiente', 'Queda abaixo do mínimo exigido',
            'Oferta indisponível', 'Oferta publicada recentemente',
-           'Condições de pagamento desconhecidas')
+           'Condições de pagamento desconhecidas', 'Disponibilidade não confirmada')
 SOURCE_FAILURES = ('catalog_mapping_required', 'catalog_item_missing', 'needs_authorized_feed',
                    'access_denied', 'auth_required', 'oauth_pending', 'network_error',
-                   'rate_limited', 'invalid_response', 'wholesale_review')
+                   'rate_limited', 'invalid_response', 'wholesale_review',
+                   'price_unconfirmed', 'seller_unconfirmed', 'item_unavailable')
 
 
 def summarize(report):
     reasons = Counter(reason for row in report for reason in row.get('decision', {}).get('reasons', ())
                       if reason in REASONS)
-    return {'evaluated': len(report),
+    observed = Counter(row.get('store') for row in report if row.get('observation_recorded')
+                       and row.get('store') in ('mercadolivre', 'amazon', 'kabum', 'magalu', 'pichau'))
+    return {'evaluated': len(report), 'observations': dict(observed),
             'approved': sum(row.get('decision', {}).get('status') == 'approved' for row in report),
             'sent': sum(row.get('send_status') == 'sent' for row in report),
             'errors': sum(bool(row.get('error') or row.get('send_error')) for row in report),

@@ -23,7 +23,7 @@ sem tentar o site como alternativa. As demais continuam funcionando.
 | Loja | Implementação atual | Dependência para funcionar |
 | --- | --- | --- |
 | Mercado Livre | `MercadoLivreSource`, catálogo oficial em revisão | OAuth válido; estoque por anúncio ainda não confirmado |
-| Amazon | `AmazonSource`, importação de feed autorizado | Fornecedor/contrato e arquivo atualizado; integração nativa Creators API ainda não implementada |
+| Amazon | Feed autorizado ou `AmazonPublicReview` explícito | Modo público guarda apenas cotações do ASIN exato em revisão; não habilita envio automático nem equivale à Creators API |
 | Magalu | `MagaluSource`, importação de feed autorizado | Fonte autorizada adequada a monitorar ofertas de terceiros |
 | Pichau | `PichauSource`, importação de feed autorizado | Feed/parceria fornecido com autorização |
 | KaBuM | `KabumSource`, navegador legado isolado | Página acessível; integração não oficial, sem comprovação de autorização da loja |
@@ -166,6 +166,31 @@ O caminho comum valida moeda BRL, centavos inteiros, título, vendedor, estoque,
 data, URL da loja e identidade do produto. O histórico de API/feed usa uma chave
 separada do histórico legado, evitando comparar preço PIX com outra base de preço.
 O instante original do feed é preservado: reler um arquivo não fabrica dias de histórico.
+
+## Observações e fontes em revisão
+
+`price_observations` guarda a última observação real diária com origem, vendedor,
+base de preço, pagamento e evidência de disponibilidade. É uma tabela separada
+de `prices`: um valor real com estoque desconhecido não passa a ser um preço
+disponível usado para aprovar promoções. No Mercado Livre, `unknown` informa falta
+de evidência, em vez de afirmar que o anúncio está sem estoque. A descoberta usa
+domínios de hardware verificados e até cinco produtos de catálogo por categoria;
+a classificação pelo título e a exigência de loja oficial continuam aplicáveis.
+
+O modo Amazon `public_catalog_review` é uma integração pública experimental, não
+uma API oficial nem comprovação de autorização da loja. Consulta somente URLs
+configuradas, sem login, identidade rotativa ou interação com carrinho. O parser
+vincula o card ao ASIN solicitado, preço unitário BRL, quantidade e vendedor/entrega
+Amazon. O preço observado no widget “Compre junto” recebe a base
+`amazon_bundle_unit_quote`; não é apresentado como preço de compra avulsa e não
+alimenta histórico elegível ou envio. Não usa preços globais `.a-price`, valores
+mínimos de outros vendedores ou produtos recomendados. Se os campos faltarem,
+não registra preço inventado. 403/captcha suspendem a fonte; 429/5xx adiam a consulta.
+
+Na verificação de 26/10, as páginas públicas testadas de Pichau e Magalu retornaram
+403, sem repetição nem tentativa de contornar o acesso. Seus adaptadores permanecem
+dependentes de feeds/acesso adequados. Cadastro de afiliado ou credenciais de seller
+não são presumidos como acesso ao catálogo varejista completo.
 
 ## Diagnóstico e novas tentativas
 

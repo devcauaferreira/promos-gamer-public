@@ -12,6 +12,7 @@ from publishers.whatsapp import publish
 from services.discount_filter import evaluate, mark_published
 from services.message_builder import build_message
 from services.price_history import record_price
+from services.price_observations import record_observation
 from services.settings import load_settings
 from collectors.discovery import discover, tracked_entries
 from collectors.catalog import canonical_product
@@ -82,11 +83,16 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                     context = sha256(basis.encode()).hexdigest()[:12]
                     from dataclasses import replace
                     offer = replace(offer, product_id=f"{entry['id']}:{context}")
+                    observed_at = datetime.fromisoformat(offer.observed_at) if offer.observed_at else now
+                    try:
+                        record_observation(db, offer, observed_at)
+                        row['observation_recorded'] = True
+                    except ValueError as exc:
+                        row["observation_skipped"] = str(exc)
                     channel = "whatsapp:" + group
                     decision = evaluate(db, offer, config, now, channel)
                     row.update(offer=asdict(offer), decision=asdict(decision), message=build_message(offer, decision))
                     if offer.available and offer.seller_id and offer.payment_terms:
-                        observed_at = datetime.fromisoformat(offer.observed_at) if offer.observed_at else now
                         record_price(db, offer.store, offer.product_id, offer.price_cents, observed_at)
                     else:
                         row["history_skipped"] = "Estoque, vendedor ou pagamento não confirmado"

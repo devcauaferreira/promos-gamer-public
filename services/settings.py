@@ -29,7 +29,10 @@ def load_settings(path="settings.json"):
         raise ValueError("Limites de descoberta inválidos")
     for store, source in data.get("sources", {}).items():
         mode = source.get("mode", DEFAULT_MODES.get(store))
-        if store not in DEFAULT_MODES or mode not in ("disabled", "authorized_feed", DEFAULT_MODES[store]):
+        allowed_modes = ('disabled', 'authorized_feed', DEFAULT_MODES.get(store))
+        if store == 'amazon':
+            allowed_modes += ('public_catalog_review',)
+        if store not in DEFAULT_MODES or mode not in allowed_modes:
             raise ValueError("Modo de fonte não suportado")
         if mode == "authorized_feed" and not 1 <= int(source.get("max_age_minutes", 60)) <= 1440:
             raise ValueError("Validade do feed deve estar entre 1 e 1440 minutos")

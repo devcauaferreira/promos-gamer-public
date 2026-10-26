@@ -10,9 +10,11 @@ pode ficar desligado. Veja [DEPLOY.md](DEPLOY.md) para operação e reconexão.
 envios confirmados e motivos dos filtros, sem precisar existir promoção aprovada.
 
 As promoções só são enviadas quando houver histórico e desconto suficientes,
-disponibilidade confirmada e vendedor dentro das regras. Hoje a KaBuM coleta;
-Mercado Livre permanece limitado pela confirmação de disponibilidade, e Amazon,
-Magalu e Pichau aguardam fontes autorizadas configuradas.
+disponibilidade confirmada e vendedor dentro das regras. A KaBuM coleta preços
+disponíveis; o Mercado Livre registra observações reais de catálogo, com publicação
+limitada pela confirmação de disponibilidade. A Amazon possui modo público explícito
+de observação em revisão, separado do histórico elegível. Magalu e Pichau aguardam
+fontes acessíveis adequadas após HTTP 403 nas páginas testadas.
 
 Monitor local de produtos reais, sem afiliados e sem cálculo de frete.
 
@@ -28,8 +30,9 @@ monitorado ainda exige resolver a resposta `403 access_denied` da API.
 As fontes são selecionadas por loja em `settings.json`. A KaBuM mantém a busca
 web legada para processador, placa-mãe, memória RAM, SSD, fonte, placa de vídeo e
 kit upgrade. O Mercado Livre usa o catálogo oficial com OAuth conectado, mas
-continua sem confirmação de disponibilidade dos anúncios consultados. Amazon,
-Magalu e Pichau aguardam feeds autorizados. Não há tentativa de voltar aos sites
+continua sem confirmação de disponibilidade dos anúncios consultados. O modo Amazon
+`public_catalog_review` registra somente cotações de cards vinculados ao ASIN exato,
+sem aprovar publicações. Magalu e Pichau aguardam feeds autorizados. Não há tentativa de voltar aos sites
 bloqueados quando uma API ou feed está sem acesso.
 
 A integração nativa com a Creators API da Amazon ainda não foi implementada,
@@ -37,6 +40,11 @@ pois depende de elegibilidade no programa de associados, que este projeto não t
 O cadastro de uma loja não significa que sua fonte esteja operacional.
 Consulte [ARQUITETURA.md](ARQUITETURA.md) para as decisões, documentação oficial,
 configuração do Mercado Livre e contrato de feed.
+
+`price_observations` preserva valores reais, inclusive os que têm disponibilidade
+desconhecida ou contexto de compra não confirmado. Esses valores não entram na
+média de `prices` usada para enviar promoções. O resumo de cada ciclo mostra as
+contagens de observações por loja e as pendências de acesso/disponibilidade.
 
 A descoberta lê até 20 produtos por categoria/loja a cada seis horas e mantém
 um cadastro em SQLite. Consulta até 20 produtos descobertos por ciclo, além dos

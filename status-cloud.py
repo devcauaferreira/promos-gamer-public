@@ -31,6 +31,8 @@ def main():
                         print(reason + ':', count)
                     for code, count in info.get('source_failures', {}).items():
                         print('Pendência ' + code + ':', count)
+                    for store, count in info.get('observations', {}).items():
+                        print('Observações registradas ' + store + ':', count)
         else:
             print('Registro de ciclos ainda não implantado; consulta ao histórico abaixo.')
         if 'prices' in tables:
@@ -39,6 +41,9 @@ def main():
             print('Promoções com envio confirmado:', db.execute('SELECT COUNT(*) FROM publications').fetchone()[0])
         if 'pending_offers' in tables:
             print('Candidatos aguardando envio:', db.execute("SELECT COUNT(*) FROM pending_offers WHERE state='pending'").fetchone()[0])
+        if 'price_observations' in tables:
+            print('Observações persistidas por loja:', db.execute(
+                'SELECT store,COUNT(*),MAX(observed_at) FROM price_observations GROUP BY store').fetchall())
 
 
 if __name__ == '__main__':

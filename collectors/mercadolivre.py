@@ -13,9 +13,22 @@ from services.niche import category_for
 from services.secrets import secret
 
 
+# Domínios verificados nas respostas reais do catálogo MLB. O domínio de SSD
+# também contém HDDs: o título continua sujeito à classificação estrita.
+CATALOG_DOMAINS = {
+    'processador': 'MLB-COMPUTER_PROCESSORS',
+    'placa_mae': 'MLB-COMPUTER_MOTHERBOARDS',
+    'memoria_ram': 'MLB-RAM_MEMORY_MODULES',
+    'ssd': 'MLB-HARD_DRIVES_AND_SSDS',
+    'fonte': 'MLB-DESKTOP_COMPUTER_POWER_SUPPLIES',
+    'placa_video': 'MLB-GRAPHICS_CARDS',
+}
+
+
 class MercadoLivreSource:
     store = "mercadolivre"
     mode = "official_api"
+    discovery_version = 'hardware-domains-v2'
 
     def __init__(self, db, options, client=None):
         self.options = options
@@ -101,7 +114,8 @@ class MercadoLivreSource:
                      None, "Preço do anúncio na API; confira as condições de pagamento na loja",
                      available, url, False, source=self.mode,
                      observed_at=datetime.now(timezone.utc).isoformat(), price_basis="api_item_price",
-                     official_store_id=data.get("official_store_id"))
+                     official_store_id=data.get("official_store_id"),
+                     availability_evidence="quantity" if available else "unknown")
 
     def _catalog_get(self, path, operation):
         state = self.status()
@@ -123,21 +137,21 @@ class MercadoLivreSource:
         limit = max(0, min(int(limit), 20))
         if not limit:
             return []
-        params = {"status": "active", "site_id": "MLB", "q": QUERIES[category], "limit": 3}
-        # Evita kits/computadores completos na busca de CPUs.
-        if category == "processador":
-            params["domain_id"] = "MLB-COMPUTER_PROCESSORS"
+        products_limit = max(1, min(int(self.options.get('catalog_products_per_category', 5)), 10))
+        params = {"status": "active", "site_id": "MLB", "q": QUERIES[category], "limit": products_limit}
+        if category in CATALOG_DOMAINS:
+            params['domain_id'] = CATALOG_DOMAINS[category]
         configured = self.options.get("catalog_ids", {}).get(category, [])
         if configured:
             if not isinstance(configured, list) or any(not re.fullmatch(r"MLB\d+", str(pid)) for pid in configured):
                 raise SourceError("invalid_configuration", "catalog_ids deve conter listas de IDs MLB por categoria")
-            data = {"results": [self._catalog_get("/products/" + pid, "catalog_product") for pid in configured[:3]]}
+            data = {"results": [self._catalog_get("/products/" + pid, "catalog_product") for pid in configured[:products_limit]]}
         else:
             data = self._catalog_get("/products/search?" + urlencode(params), "catalog_search")
         if not isinstance(data, dict) or not isinstance(data.get("results"), list):
             raise SourceError("invalid_response", "Busca de catálogo inválida")
         found = {}
-        for product in data["results"][:3]:
+        for product in data["results"][:products_limit]:
             pid = product.get("id", "")
             if (not re.fullmatch(r"MLB\d+", str(pid)) or product.get("status") != "active"
                     or category_for(product.get("name", "")) != category):
@@ -201,6 +215,7 @@ class MercadoLivreSource:
         # evidência quando corresponde ao mesmo anúncio, vendedor, moeda e preço.
         available = (item.get("status") == "active" and item.get("condition") == "new"
                      and type(quantity) in (int, float) and quantity > 0)
+        availability_evidence = "quantity" if available else "unknown"
         winner = product.get("buy_box_winner")
         if not available and isinstance(winner, dict) and item.get("status") in (None, "active"):
             winner_quantity = winner.get("available_quantity")
@@ -209,7 +224,10 @@ class MercadoLivreSource:
                          and type(winner_quantity) in (int, float) and winner_quantity > 0
                          and item.get("condition") == "new"
                          and (quantity is None or (type(quantity) in (int,float) and quantity > 0)))
+            if available:
+                availability_evidence = "buy_box_winner"
         return Offer(self.store, key, product["name"], str(seller), price, None,
                      "Preço do anúncio no catálogo; confira pagamento na loja", available, entry["url"], False,
                      source=self.mode, observed_at=datetime.now(timezone.utc).isoformat(),
-                     price_basis="catalog_item_price", official_store_id=item.get("official_store_id"))
+                     price_basis="catalog_item_price", official_store_id=item.get("official_store_id"),
+                     availability_evidence=availability_evidence)

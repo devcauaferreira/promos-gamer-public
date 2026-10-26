@@ -39,13 +39,14 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(offer.official_store_id, 1)
             self.assertEqual(offer.price_basis, "catalog_item_price")
             self.assertFalse(offer.available)
+            self.assertEqual(offer.availability_evidence, "unknown")
             now = datetime.now(timezone.utc)
             for days in (1, 2, 3):
                 record_price(db, offer.store, offer.product_id, 80000, now - timedelta(days=days))
             config = Config(trusted_sellers=frozenset({("mercadolivre", "42")}))
             decision = evaluate(db, offer, config, now)
             self.assertEqual(decision.status, "pending_review")
-            self.assertEqual(decision.reasons, ("Oferta indisponível",))
+            self.assertEqual(decision.reasons, ("Disponibilidade não confirmada",))
             self.assertTrue(all("/products/" in call.args[0] for call in client.get.call_args_list))
 
     def test_manual_link_has_no_silent_item_endpoint_fallback(self, secret):
@@ -65,7 +66,9 @@ class CatalogTests(unittest.TestCase):
             winner = dict(self.item(), available_quantity=2)
             product["buy_box_winner"] = winner
             client.get.side_effect = [product, {"results":[self.item()]}]
-            self.assertTrue(source.collect(self.entry()).available)
+            offer = source.collect(self.entry())
+            self.assertTrue(offer.available)
+            self.assertEqual(offer.availability_evidence, "buy_box_winner")
             for changes in ({"item_id":"MLB999"}, {"seller_id":99}, {"price":1},
                             {"currency_id":"USD"}, {"available_quantity":0}):
                 product["buy_box_winner"] = dict(winner, **changes)
@@ -75,6 +78,14 @@ class CatalogTests(unittest.TestCase):
             for changes in ({"available_quantity":0}, {"status":"paused"}, {"condition":"used"}):
                 client.get.side_effect = [product, {"results":[dict(self.item(), **changes)]}]
                 self.assertFalse(source.collect(self.entry()).available)
+
+    def test_declared_catalog_stock_records_its_evidence(self, secret):
+        with closing(connect(":memory:")) as db:
+            source, client = self.source(db)
+            client.get.side_effect = [self.product(), {"results": [dict(self.item(), status="active", available_quantity=1)]}]
+            offer = source.collect(self.entry())
+            self.assertTrue(offer.available)
+            self.assertEqual(offer.availability_evidence, "quantity")
 
     def test_missing_item_and_wrong_currency_are_rejected(self, secret):
         with closing(connect(":memory:")) as db:
@@ -107,6 +118,16 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(entries[0]["catalog_id"], "MLB19444510")
             self.assertEqual(entries[0]["id"], "ml-MLB123")
             self.assertIn("MLB123", entries[0]["url"])
+
+    def test_search_uses_verified_hardware_domain_and_bounded_sample(self, secret):
+        from urllib.parse import parse_qs, urlparse
+        with closing(connect(':memory:')) as db:
+            source, client = self.source(db)
+            client.get.return_value = {'results': []}
+            source.search('fonte', 20)
+            query = parse_qs(urlparse(client.get.call_args.args[0]).query)
+            self.assertEqual(query['domain_id'], ['MLB-DESKTOP_COMPUTER_POWER_SUPPLIES'])
+            self.assertEqual(query['limit'], ['5'])
 
     def test_catalog_excludes_bulk_or_used_listing(self, secret):
         with closing(connect(":memory:")) as db:

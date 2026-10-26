@@ -22,7 +22,7 @@ class OutboxTests(unittest.TestCase):
                 try:
                     now = datetime.now(timezone.utc)
                     rows = [{'url': 'https://www.pichau.com.br/ssd-' + name, 'title': 'SSD ' + name,
-                             'seller_id': 'Pichau', 'shipped_by': 'Pichau', 'price_cents': 38000,
+                             'seller_id': 'Pichau', 'shipped_by': 'Pichau', 'price_cents': 36000,
                              'currency': 'BRL', 'available': True, 'payment_terms': 'PIX',
                              'observed_at': now.isoformat()} for name in ('kingston-1tb', 'crucial-1tb')]
                     Path('feed.json').write_text(json.dumps({'schema_version': 1, 'store': 'pichau', 'offers': rows}), encoding='utf-8')
@@ -75,7 +75,7 @@ class OutboxTests(unittest.TestCase):
         with closing(connect(':memory:')) as db:
             ensure_outbox(db)
             now = datetime.now(timezone.utc)
-            offer = Offer('kabum', 'cpu', 'Processador Ryzen', 'KaBuM!', 38000,
+            offer = Offer('kabum', 'cpu', 'Processador Ryzen', 'KaBuM!', 36000,
                           None, 'PIX', True, 'https://www.kabum.com.br/produto/1')
             enqueue(db, {'store': 'kabum', 'id': 'cpu'}, offer, now - timedelta(minutes=31))
             self.assertEqual(pending(db, now), [])
@@ -89,7 +89,7 @@ class OutboxTests(unittest.TestCase):
                 try:
                     now = datetime.now(timezone.utc)
                     rows = [{'url': 'https://www.pichau.com.br/ssd-' + name, 'title': 'SSD ' + name,
-                             'seller_id': 'Pichau', 'shipped_by': 'Pichau', 'price_cents': 38000,
+                             'seller_id': 'Pichau', 'shipped_by': 'Pichau', 'price_cents': 36000,
                              'currency': 'BRL', 'available': True, 'payment_terms': 'PIX',
                              'observed_at': now.isoformat()} for name in ('kingston-1tb', 'crucial-1tb')]
                     def write_feed():

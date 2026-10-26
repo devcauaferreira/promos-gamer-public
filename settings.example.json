@@ -1,7 +1,7 @@
 {
   "database_path": "database/promos.sqlite3",
-  "minimum_discount_percent": 15,
-  "history_days": 7,
+  "minimum_discount_percent": 25,
+  "history_days": 30,
   "minimum_history_days": 1,
   "repeat_hours": 24,
   "trusted_sellers": [],

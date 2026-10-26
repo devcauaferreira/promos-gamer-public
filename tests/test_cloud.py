@@ -51,7 +51,7 @@ class CloudTests(unittest.TestCase):
         try:
             db.execute('create table dispatches(store text, product_id text, channel text,state text,message_id text,updated_at text,primary key(store,product_id,channel))')
             now = datetime.now(timezone.utc)
-            offer = Offer('kabum','cpu','Processador Ryzen','KaBuM!',38000,None,'PIX',True,'https://www.kabum.com.br/produto/1', shipped_by='KaBuM!')
+            offer = Offer('kabum','cpu','Processador Ryzen','KaBuM!',36000,None,'PIX',True,'https://www.kabum.com.br/produto/1', shipped_by='KaBuM!')
             config = Config(trusted_sellers=frozenset({('kabum','KaBuM!')}))
             for day in (1,2,3):
                 record_price(db,'kabum','cpu',49000,now-timedelta(days=day))
@@ -68,7 +68,7 @@ class CloudTests(unittest.TestCase):
         db = connect(':memory:')
         self.addCleanup(db.close)
         db.execute('create table dispatches(store text, product_id text, channel text,state text,message_id text,updated_at text,primary key(store,product_id,channel))')
-        offer = Offer('kabum','cpu','Processador Ryzen','KaBuM!',38000,None,'PIX',True,
+        offer = Offer('kabum','cpu','Processador Ryzen','KaBuM!',36000,None,'PIX',True,
                       'https://www.kabum.com.br/produto/1',shipped_by='KaBuM!')
         now = datetime.now(timezone.utc)
         for day in (1,2,3):

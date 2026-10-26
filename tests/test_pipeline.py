@@ -17,7 +17,7 @@ class PriceRules(unittest.TestCase):
         entry = {"id": "cpu", "store": "kabum", "url": "https://www.kabum.com.br/produto/1",
                  "payment_terms": "PIX"}
         product = {"@type": "Product", "name": "Ryzen", "offers": {
-            "@type": "Offer", "price": "380.00", "priceCurrency": "BRL",
+            "@type": "Offer", "price": "360.00", "priceCurrency": "BRL",
             "availability": "https://schema.org/InStock", "seller": {"name": "KaBuM!"}}}
         product["offers"].update(changes)
         return parse_product('<div><span>Vendido e entregue por:</span><b>KaBuM!</b></div>'
@@ -33,8 +33,8 @@ class PriceRules(unittest.TestCase):
                 record_price(db, "kabum", "cpu", 49000, now - timedelta(days=days))
             decision = evaluate(db, offer, config, now, "whatsapp:group")
             self.assertEqual(decision.status, "approved")
-            self.assertAlmostEqual(decision.discount_percent, 22.44897959)
-            record_price(db, "kabum", "cpu", 38000, now)
+            self.assertAlmostEqual(decision.discount_percent, 26.53061224)
+            record_price(db, "kabum", "cpu", 36000, now)
             self.assertEqual(evaluate(db, offer, config, now).average_cents, 49000)
             mark_published(db, offer, "whatsapp:group", now)
             self.assertEqual(evaluate(db, offer, config, now, "whatsapp:group").status, "pending_review")
@@ -50,7 +50,23 @@ class PriceRules(unittest.TestCase):
             record_price(db, "kabum", "cpu", 49000, now - timedelta(days=1))
             decision = evaluate(db, offer, config, now)
             self.assertEqual(decision.status, "approved")
-            self.assertAlmostEqual(decision.discount_percent, 22.44897959)
+            self.assertAlmostEqual(decision.discount_percent, 26.53061224)
+
+    def test_monthly_rule_accepts_exactly_25_percent_and_uses_only_prior_30_days(self):
+        now = datetime(2026, 10, 26, 12, tzinfo=timezone.utc)
+        with closing(connect(':memory:')) as db:
+            for days in (20, 30):
+                record_price(db, 'kabum', 'cpu', 50000, now - timedelta(days=days))
+            record_price(db, 'kabum', 'cpu', 90000, now - timedelta(days=31))
+            record_price(db, 'kabum', 'cpu', 100000, now)
+            config = Config()
+            decision = evaluate(db, self.offer(price='375.00'), config, now)
+            self.assertEqual(decision.average_cents, 50000)
+            self.assertEqual(decision.discount_percent, 25)
+            self.assertEqual(decision.status, 'approved')
+            below_threshold = evaluate(db, self.offer(price='375.01'), config, now)
+            self.assertEqual(below_threshold.status, 'pending_review')
+            self.assertIn('Queda abaixo do mínimo exigido', below_threshold.reasons)
 
     def test_weekly_window_excludes_prices_older_than_seven_days(self):
         now = datetime(2026, 10, 26, 12, tzinfo=timezone.utc)

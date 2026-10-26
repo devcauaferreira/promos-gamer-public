@@ -12,6 +12,7 @@ class Decision:
     average_cents: float | None
     discount_percent: float | None
     reasons: tuple[str, ...]
+    history_days: int = 30
 
 
 def evaluate(db, offer, config, now, channel="whatsapp"):
@@ -39,7 +40,8 @@ def evaluate(db, offer, config, now, channel="whatsapp"):
         AND channel=? AND published_at>=? LIMIT 1""",
         (offer.store, offer.product_id, channel, cutoff)).fetchone():
         reasons.append("Oferta publicada recentemente")
-    return Decision("pending_review" if reasons else "approved", average, discount, tuple(reasons))
+    return Decision("pending_review" if reasons else "approved", average, discount, tuple(reasons),
+                    history_days=config.history_days)
 
 
 def mark_published(db, offer, channel, now):

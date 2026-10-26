@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 class SellerTrustTests(unittest.TestCase):
     def offer(self, store="amazon", **kwargs):
         seller = "42" if store == "mercadolivre" else "Amazon.com.br"
-        return Offer(store, "cpu", "Processador Ryzen 5 5500", seller, 38000, None, "PIX", True,
+        return Offer(store, "cpu", "Processador Ryzen 5 5500", seller, 36000, None, "PIX", True,
                      "https://example.com/product", **kwargs)
 
     def test_amazon_requires_sold_and_shipped_by_amazon(self):

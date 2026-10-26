@@ -8,7 +8,7 @@ def build_message(offer, decision):
     lines = [f"🔥 *OFERTA DE {CATEGORIES[category].upper()}*" if category else "🔥 *OFERTA GAMER*",
              "", f"*{offer.title}*", ""]
     if decision.average_cents is not None:
-        lines.append(f"📉 Média dos últimos 7 dias: {money(decision.average_cents)}")
+        lines.append(f"📉 Média dos últimos {decision.history_days} dias: {money(decision.average_cents)}")
     lines.append(f"💥 *Agora: {money(offer.price_cents)}*")
     if decision.average_cents is not None:
         lines.append(f"⬇️ {decision.discount_percent:.1f}% abaixo da média".replace(".", ","))

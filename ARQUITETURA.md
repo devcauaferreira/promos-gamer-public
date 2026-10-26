@@ -221,7 +221,7 @@ sem revisar seus dados, como os identificadores públicos dos anúncios.
 
 ## Operação e verificação
 
-Mensagens de ofertas aprovadas usam título, preço atual, média real dos sete dias
+Mensagens de ofertas aprovadas usam título, preço atual, média real dos 30 dias
 anteriores, percentual de queda e link direto da loja. Quando a KaBuM fornece
 foto oficial correspondente ao produto, ela é enviada com a mensagem como legenda;
 se a foto falhar antes do envio, segue apenas o texto. A imagem do exemplo de

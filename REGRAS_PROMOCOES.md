@@ -15,18 +15,18 @@ pela loja quando falta histórico, rotulado `STORE_DISCOUNT_UNVERIFIED`. Isso é
 menos rigoroso que nossa regra e não foi adotado. Os padrões de 25% e 10% estão
 na [configuração](https://github.com/CaioMassola/price-alert-bot/blob/d712dd19ac9808046da9962bb5e8ea0306db1bb7/src/main/resources/application.yml#L45).
 
-Nossa configuração permanece em 15% sobre a média dos sete dias UTC anteriores,
+Por decisão do usuário, nossa configuração passou a 25% sobre a média dos 30 dias UTC anteriores,
 com pelo menos um dia anterior e uma amostra diária por produto/vendedor/pagamento.
 É uma escolha de curadoria, não um requisito técnico. Uma queda menor pode ser
 útil ao comprador, mas isso não a faz cumprir o critério atualmente escolhido.
 
 Há uma limitação: com um único dia anterior, a média representa apenas esse dia,
-mesmo que a janela permitida seja de sete dias. A confiança aumenta conforme o
+mesmo que a janela permitida seja de 30 dias. A confiança aumenta conforme o
 histórico ganha cobertura. Um percentual fixo também não detecta um produto que
 já começou barato e permaneceu nesse preço.
 
-Minha avaliação é preservar os 15% conforme a decisão atual e medir a frequência
-de alertas. Uma evolução possível é acrescentar preços-alvo por modelo e novos
+Minha avaliação é medir a frequência de alertas com a regra de 25% em 30 dias.
+Uma evolução possível é acrescentar preços-alvo por modelo e novos
 mínimos, com rótulos distintos e histórico suficiente. Esses critérios não foram
 ativados. Diminuir o percentual não corrige fontes bloqueadas ou estoque não
 confirmado e não produziria alertas na comparação auditada em que nenhum preço caiu.

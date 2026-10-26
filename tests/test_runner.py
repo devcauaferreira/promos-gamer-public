@@ -21,7 +21,7 @@ class RunnerIntegration(unittest.TestCase):
             try:
                 now = datetime.now(timezone.utc)
                 row = {"url": "https://www.pichau.com.br/ssd-kingston-1tb", "title": "SSD Kingston 1TB",
-                       "seller_id": "Pichau", "shipped_by": "Pichau", "price_cents": 38000, "currency": "BRL", "available": True,
+                       "seller_id": "Pichau", "shipped_by": "Pichau", "price_cents": 36000, "currency": "BRL", "available": True,
                        "payment_terms": "PIX", "observed_at": now.isoformat()}
                 Path("feed.json").write_text(json.dumps({"schema_version": 1, "store": "pichau", "offers": [row]}), encoding="utf-8")
                 settings = {"database_path": "prices.sqlite3", "whatsapp_group_id": "test@g.us",

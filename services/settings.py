@@ -9,8 +9,8 @@ def load_settings(path="settings.json"):
     data = json.loads(file.read_text(encoding="utf-8")) if file.exists() else {}
     config = Config(
         database_path=Path(data.get("database_path", "database/promos.sqlite3")),
-        minimum_discount_percent=float(data.get("minimum_discount_percent", 15)),
-        history_days=int(data.get("history_days", 7)),
+        minimum_discount_percent=float(data.get("minimum_discount_percent", 25)),
+        history_days=int(data.get("history_days", 30)),
         minimum_history_days=int(data.get("minimum_history_days", 1)),
         repeat_hours=int(data.get("repeat_hours", 24)),
         trusted_sellers=frozenset(tuple(pair) for pair in data.get("trusted_sellers", [])),

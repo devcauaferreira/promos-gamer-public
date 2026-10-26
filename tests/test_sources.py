@@ -111,6 +111,9 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(offer.source, "official_api")
             self.assertTrue(offer.available)
             client.get.assert_called_once()
+            item["min_purchase_unit"] = 2
+            self.assertFalse(source.collect(entry).available)
+            item.pop("min_purchase_unit")
             item["variations"] = [{"id": 1}]
             with self.assertRaises(SourceError) as error:
                 source.collect(entry)

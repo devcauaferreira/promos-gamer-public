@@ -93,7 +93,9 @@ class MercadoLivreSource:
         if store_for_url(url) != self.store or canonical_product(url)[0] != key:
             raise SourceError("invalid_response", "Permalink não corresponde ao item consultado")
         quantity = data.get("available_quantity")
+        minimum = data.get("min_purchase_unit", 1)
         available = (data.get("status") == "active" and data.get("condition") == "new"
+                     and type(minimum) is int and minimum == 1
                      and isinstance(quantity, (int, float)) and quantity > 0)
         return Offer(self.store, entry["id"], data["title"], str(seller), cents(data.get("price")),
                      None, "Preço do anúncio na API; confira as condições de pagamento na loja",
@@ -150,6 +152,9 @@ class MercadoLivreSource:
                 iid = item.get("item_id", "")
                 if not re.fullmatch(r"MLB\d+", str(iid)) or item.get("site_id") != "MLB":
                     continue
+                minimum = item.get("min_purchase_unit", 1)
+                if type(minimum) is not int or minimum != 1 or item.get("condition") != "new":
+                    continue
                 official = item.get("official_store_id")
                 if type(official) is not int or official <= 0:
                     continue
@@ -185,6 +190,9 @@ class MercadoLivreSource:
         if (item.get("site_id") != "MLB" or item.get("currency_id") != "BRL"
                 or type(seller) is not int or seller <= 0):
             raise SourceError("invalid_response", "API não confirmou moeda, site e vendedor")
+        minimum = item.get("min_purchase_unit", 1)
+        if type(minimum) is not int or minimum != 1:
+            raise SourceError("wholesale_review", "Anúncio exige múltiplas unidades ou compra mínima desconhecida")
         price = cents(item.get("price"))
         if price <= 0:
             raise SourceError("invalid_response", "Preço inválido")

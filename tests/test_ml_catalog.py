@@ -108,6 +108,19 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(entries[0]["id"], "ml-MLB123")
             self.assertIn("MLB123", entries[0]["url"])
 
+    def test_catalog_excludes_bulk_or_used_listing(self, secret):
+        with closing(connect(":memory:")) as db:
+            source, client = self.source(db)
+            client.get.side_effect = [{"results": [self.product()]},
+                                      {"results": [dict(self.item(), min_purchase_unit=2),
+                                                   dict(self.item(), condition="used")]}]
+            self.assertEqual(source.search("processador", 5), [])
+            client.get.side_effect = [self.product(),
+                                      {"results": [dict(self.item(), min_purchase_unit=2)]}]
+            with self.assertRaises(SourceError) as caught:
+                source.collect(self.entry())
+            self.assertEqual(caught.exception.state, "wholesale_review")
+
     def test_catalog_health_does_not_reset_denied_items(self, secret):
         with closing(connect(":memory:")) as db:
             old = MercadoLivreSource(db, {})

@@ -25,7 +25,7 @@ def load_settings(path="settings.json"):
     options = data.get("discovery", {})
     if any(store not in SEARCHES for store in options.get("stores", [])) or any(category not in CATEGORIES for category in options.get("categories", [])):
         raise ValueError("Loja ou categoria de busca inválida")
-    if not 1 <= int(options.get("products_per_category", 5)) <= 50 or not 1 <= int(options.get("max_products_per_run", 20)) <= 500 or float(options.get("refresh_hours", 6)) < 1:
+    if not 1 <= int(options.get("products_per_category", 5)) <= 50 or not 1 <= int(options.get("max_products_per_run", 20)) <= 500 or float(options.get("refresh_hours", 6)) < 0.25:
         raise ValueError("Limites de descoberta inválidos")
     for store, source in data.get("sources", {}).items():
         mode = source.get("mode", DEFAULT_MODES.get(store))

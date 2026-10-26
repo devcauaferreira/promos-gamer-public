@@ -111,8 +111,8 @@ def send_preview_once(config):
         reais = f"{offer.price_cents // 100:,}".replace(",", ".")
         price = f"R$ {reais},{offer.price_cents % 100:02d}"
         message = ("🧪 PRÉVIA REAL — teste da automação\n"
-                   "Este produto está disponível, mas ainda não teve desconto de 15% confirmado "
-                   "pela comparação com os últimos 7 dias. Não é uma promoção aprovada.\n\n"
+                   f"Este produto está disponível, mas ainda não teve desconto de {config.minimum_discount_percent:g}% confirmado "
+                   f"pela comparação com os últimos {config.history_days} dias. Não é uma promoção aprovada.\n\n"
                    f"{title}\nPreço atual: {price} ({terms})\n"
                    "Vendido e entregue pela KaBuM. Frete não incluído.\n"
                    f"{offer.affiliate_url}")
@@ -133,17 +133,83 @@ def send_preview_once(config):
         print("Prévia única de produto real confirmada pelo WhatsApp.", flush=True)
 
 
-def run(connect_only=False, limit=20, send_test=False, send_preview=False):
+def send_media_test_once(config):
+    """Único teste com foto explicitamente autorizado, separado das promoções."""
+    from contextlib import closing
+    from pathlib import Path
+    from collectors.registry import LazyBrowser, build_sources
+    from database.models import connect
+    from services.cloud import CloudState
+    from services.seller_trust import seller_rejection
+    from publishers.whatsapp import publish
+
+    run_id = os.environ.get('GITHUB_RUN_ID', '')
+    if not run_id.isdigit():
+        raise ValueError('Teste de mídia exige execução do GitHub.')
+    settings = json.loads(Path('settings.json').read_text(encoding='utf-8'))
+    state = CloudState(config.database_path)
+    state.restore()
+    with closing(connect(config.database_path)) as db:
+        db.execute('''CREATE TABLE IF NOT EXISTS whatsapp_media_tests (
+            singleton INTEGER PRIMARY KEY CHECK(singleton=1), state TEXT NOT NULL,
+            run_id TEXT NOT NULL, message_id TEXT)''')
+        if db.execute('SELECT 1 FROM whatsapp_media_tests').fetchone():
+            print('Teste com foto já reservado; nenhuma repetição automática.', flush=True)
+            return
+        entries = json.loads(Path('products.json').read_text(encoding='utf-8'))
+        browser = LazyBrowser()
+        image_url = ''
+        try:
+            source = build_sources(db, settings, browser)['kabum']
+            for entry in entries:
+                if entry.get('store') != 'kabum' or not entry.get('enabled', True):
+                    continue
+                offer = source.collect(entry)
+                if offer.available and offer.image_url and not seller_rejection(offer):
+                    image_url = offer.image_url
+                    break
+        finally:
+            browser.close()
+        if not image_url:
+            raise ValueError('Nenhuma foto de produto validado disponível para o teste.')
+        db.execute("INSERT INTO whatsapp_media_tests VALUES (1,'sending',?,NULL)", (run_id,))
+        db.commit()
+        state.checkpoint(db)
+        try:
+            message_id = publish('🧪 Teste técnico do Promos Gamer: validação de envio com foto pelo GitHub Actions. Não é uma promoção.',
+                                 settings['whatsapp_group_id'], image_url=image_url, require_image=True)
+        except Exception:
+            db.execute("UPDATE whatsapp_media_tests SET state='uncertain'")
+            db.commit()
+            state.checkpoint(db)
+            raise
+        db.execute("UPDATE whatsapp_media_tests SET state='confirmed',message_id=?", (message_id,))
+        from datetime import datetime, timezone
+        db.execute('''CREATE TABLE IF NOT EXISTS whatsapp_health (
+            singleton INTEGER PRIMARY KEY CHECK(singleton=1), checked_at TEXT NOT NULL,
+            ready INTEGER NOT NULL, group_found INTEGER NOT NULL, session_saved INTEGER NOT NULL)''')
+        db.execute('INSERT OR REPLACE INTO whatsapp_health VALUES (1,?,1,1,1)',
+                   (datetime.now(timezone.utc).isoformat(),))
+        db.commit()
+        state.checkpoint(db)
+        print('Teste único com foto confirmado pelo servidor do WhatsApp.', flush=True)
+
+
+def run(connect_only=False, limit=20, send_test=False, send_preview=False, verify_only=False, send_media_test=False):
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise ValueError("Este comando deve ser executado no GitHub Actions")
-    if (send_test or send_preview) and not connect_only or (send_test and send_preview):
+    if verify_only and (send_test or send_preview or send_media_test):
+        raise ValueError('Verificação não permite envio de mensagens.')
+    connect_only = connect_only or verify_only
+    send_validation = send_test or send_preview or send_media_test
+    if send_validation and not connect_only or sum(map(bool, (send_test, send_preview, send_media_test))) > 1:
         raise ValueError("Envio de validação exige um único modo explícito de conexão")
     config = configure(limit)
-    env = dict(os.environ, WHATSAPP_AUTH_MODE="supabase", WHATSAPP_ALLOW_QR=str(connect_only and not (send_test or send_preview)).lower(),
+    env = dict(os.environ, WHATSAPP_AUTH_MODE="supabase", WHATSAPP_ALLOW_QR=str(connect_only and not (send_validation or verify_only)).lower(),
                WHATSAPP_BRIDGE_TOKEN=secrets.token_hex(32), WHATSAPP_RUNNER_BRIDGE="true")
     process = subprocess.Popen(["node", "publishers/whatsapp_bridge.cjs"], env=env)
     try:
-        deadline = time.monotonic() + (600 if connect_only and not (send_test or send_preview) else 180 if (send_test or send_preview) else 300)
+        deadline = time.monotonic() + (300 if verify_only else 600 if connect_only and not send_validation else 180 if send_validation else 300)
         next_report = 0
         while time.monotonic() < deadline:
             if process.poll() is not None:
@@ -170,21 +236,40 @@ def run(connect_only=False, limit=20, send_test=False, send_preview=False):
         else:
             raise RuntimeError("WhatsApp não ficou pronto no prazo; confira conexão e grupo")
         if connect_only:
-            if send_test or send_preview:
+            if verify_only:
+                from contextlib import closing
+                from datetime import datetime, timezone
+                from database.models import connect
+                from services.cloud import CloudState
+                state = CloudState(config.database_path)
+                state.restore()
+                with closing(connect(config.database_path)) as db:
+                    db.execute('''CREATE TABLE IF NOT EXISTS whatsapp_health (
+                        singleton INTEGER PRIMARY KEY CHECK(singleton=1), checked_at TEXT NOT NULL,
+                        ready INTEGER NOT NULL, group_found INTEGER NOT NULL, session_saved INTEGER NOT NULL)''')
+                    db.execute('INSERT OR REPLACE INTO whatsapp_health VALUES (1,?,1,1,1)',
+                               (datetime.now(timezone.utc).isoformat(),))
+                    db.commit()
+                    state.checkpoint(db)
+                print('Conexão, grupo e sessão persistida verificados. Nenhuma mensagem enviada.', flush=True)
+                return
+            if send_validation:
                 # O publicador deve usar a mesma ponte privada criada neste job.
                 previous = {key:os.environ.get(key) for key in ("WHATSAPP_BRIDGE_TOKEN","WHATSAPP_RUNNER_BRIDGE")}
                 try:
                     for key in previous: os.environ[key] = env[key]
                     if send_test:
                         send_test_once(config)
+                    elif send_media_test:
+                        send_media_test_once(config)
                     else:
                         send_preview_once(config)
                 finally:
                     for key,value in previous.items():
                         if value is None: os.environ.pop(key,None)
                         else: os.environ[key] = value
-            print("Sessão da nuvem conectada e persistida." + ("" if (send_test or send_preview) else " Nenhuma mensagem enviada."), flush=True)
-            if send_test or send_preview:
+            print("Sessão da nuvem conectada e persistida." + ("" if send_validation else " Nenhuma mensagem enviada."), flush=True)
+            if send_validation:
                 print("O envio solicitado de teste foi tratado separadamente; nenhuma oferta publicada.",flush=True)
             return
         subprocess.run([sys.executable,"cloud_run.py","--send","--limit",str(limit)],env=env,check=True)
@@ -204,8 +289,10 @@ def run(connect_only=False, limit=20, send_test=False, send_preview=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--connect", action="store_true")
+    parser.add_argument('--verify', action='store_true', help='Verifica sessão/grupo sem QR nem mensagens')
+    parser.add_argument('--media-test', action='store_true', help='Teste único com foto explicitamente autorizado')
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--test", action="store_true", help="Enviar uma mensagem técnica explicitamente solicitada, sem repetir no mesmo run")
     parser.add_argument("--preview", action="store_true", help="Enviar uma única prévia real sem alegar promoção aprovada")
     args = parser.parse_args()
-    run(args.connect, args.limit, args.test, args.preview)
+    run(args.connect, args.limit, args.test, args.preview, verify_only=args.verify, send_media_test=args.media_test)

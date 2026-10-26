@@ -5,11 +5,15 @@ cria a próxima rodada com seu token temporário; `self_chain` identifica os dis
 automáticos no estado privado. `PROMOS_CHAIN_ENABLED` controla a continuação.
 Um watchdog em fila separada verifica a continuidade pelo agendamento nativo e
 recupera a cadeia se não houver rodada ativa; atrasos do GitHub continuam possíveis.
+O runner usa seu Chrome pré-instalado, sem reinstalar dependências do sistema em
+cada rodada. `PROMOS_PRODUCT_LIMIT` controla o tamanho do lote dos sucessores.
 A sessão WhatsApp da nuvem foi conectada, salva com criptografia e restaurada em
 outro runner; uma mensagem de teste recebeu confirmação do servidor. O computador
 pode ficar desligado. Veja [DEPLOY.md](DEPLOY.md) para operação e reconexão.
 `python status-cloud.py` mostra o horário do último ciclo, quantidades avaliadas,
 envios confirmados e motivos dos filtros, sem precisar existir promoção aprovada.
+Também mostra a política efetivamente usada, cobertura do rodízio por loja e
+resultados incertos. Veja [AUDITORIA_PIPELINE.md](AUDITORIA_PIPELINE.md).
 
 As promoções só são enviadas quando houver histórico e desconto suficientes,
 disponibilidade confirmada e vendedor dentro das regras. A KaBuM coleta preços

@@ -37,7 +37,7 @@ def execute(send=False, check_candidates=False, limit=None):
         validate_publish_bridge()
     state = CloudState(config.database_path)
     state.restore()
-    from services.monitoring import start_run, finish_run
+    from services.monitoring import start_run, finish_run, operation_summary
     from uuid import uuid4
     import os
     run_id = uuid4().hex
@@ -53,9 +53,19 @@ def execute(send=False, check_candidates=False, limit=None):
     finally:
         # Se o processo for morto, reservas de envio já foram persistidas antes da rede.
         with closing(connect(config.database_path)) as db:
-            delivery_problem = send and any(row.get('send_error') or row.get('persistence_error') for row in report)
+            delivery_problem = send and any(row.get('error') or row.get('send_error')
+                                           or row.get('persistence_error') for row in report)
             status = 'requires_attention' if completed and delivery_problem else 'completed' if completed else 'failed'
-            finish_run(db, run_id, status, report)
+            from services.settings import load_settings
+            from collectors.registry import build_sources, source_report
+            try:
+                _, actual_settings = load_settings()
+                source_rows = source_report(build_sources(db, actual_settings, None))
+                operation = operation_summary(db, config, actual_settings, source_rows)
+            except (OSError, ValueError, TypeError, KeyError):
+                operation = operation_summary(db, config, {})
+            finish_run(db, run_id, status, report, operation=operation)
+            Path('reports/operation.json').write_text(json.dumps(operation), encoding='utf-8')
             state.checkpoint(db)
     if check_candidates:
         from services.outbox import pending

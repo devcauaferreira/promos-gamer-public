@@ -48,9 +48,18 @@ class ContinuationTests(unittest.TestCase):
             continue_monitor(self.env(), opener=opener, clock=lambda: 1800000000)
         self.assertEqual(opener.open.call_count, 1)
 
+    def test_configured_batch_size_is_preserved_in_successor(self):
+        opener = Mock()
+        opener.open.return_value = Response()
+        continue_monitor(dict(self.env(), PROMOS_PRODUCT_LIMIT='60'), opener=opener,
+                         clock=lambda: 1800000000)
+        self.assertEqual(json.loads(opener.open.call_args.args[0].data)['inputs']['limit'], '60')
+
     def test_rejects_credential_destination_and_unbounded_wait(self):
         for change in ({'GITHUB_API_URL': 'https://evil.example'}, {'NEXT_SLOT': '1800001000'},
-                       {'NEXT_SLOT': '$(invalid)'}, {'GITHUB_REPOSITORY': '../bad/path'}):
+                       {'NEXT_SLOT': '$(invalid)'}, {'GITHUB_REPOSITORY': '../bad/path'},
+                       {'PROMOS_PRODUCT_LIMIT': '0'}, {'PROMOS_PRODUCT_LIMIT': '501'},
+                       {'PROMOS_PRODUCT_LIMIT': 'invalid'}):
             opener = Mock()
             with self.assertRaises(ValueError):
                 continue_monitor(dict(self.env(), **change), opener=opener, clock=lambda: 1800000000)

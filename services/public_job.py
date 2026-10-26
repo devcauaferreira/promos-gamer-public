@@ -28,6 +28,12 @@ def safe_summary():
     print(f"Produtos avaliados: {len(offers)}; ofertas aprovadas: {approved}; sem histórico anterior: {no_history}", flush=True)
     from services.monitoring import summarize
     summary = summarize(offers)
+    operation_file = Path('reports/operation.json')
+    if operation_file.is_file():
+        from services.monitoring import _safe_operation
+        operation = _safe_operation(json.loads(operation_file.read_text(encoding='utf-8')))
+        policy = operation.get('policy', {})
+        print(f"Política efetiva: {policy.get('minimum_discount_percent')}%; janela {policy.get('history_days')} dias; lote {policy.get('products_per_run')}", flush=True)
     for store, count in summary['observations'].items():
         print(f"Observações registradas {store}: {count}", flush=True)
     print(f"Envios confirmados: {summary['sent']}; erros: {summary['errors']}; pendências de persistência: {summary['persistence_errors']}", flush=True)
@@ -35,24 +41,32 @@ def safe_summary():
         print(f"Filtro: {reason}; produtos: {count}", flush=True)
     for code, count in summary['source_failures'].items():
         print(f"Pendência: {code}; produtos: {count}", flush=True)
+    for store, counts in summary['funnel'].items():
+        print(f"Etapas {store}: coletados={counts['collected']}; disponíveis={counts['available']}; com histórico={counts['history_ready']}; atingiram desconto={counts['discount_met']}; aprovados={counts['approved']}; enviados={counts['sent']}", flush=True)
+    for code, count in summary['delivery_failures'].items():
+        print(f'Falha de entrega: {code}; tentativas: {count}', flush=True)
 
 
-def run_job(mode, limit=20, send_test=False, send_preview=False):
-    if mode not in ("collect", "publish", "connect"):
+def run_job(mode, limit=20, send_test=False, send_preview=False, send_media_test=False):
+    if mode not in ("collect", "publish", "connect", "verify"):
         raise ValueError("Tarefa não suportada")
-    if (not 1 <= limit <= 500 or ((send_test or send_preview) and mode != "connect")
-            or (send_test and send_preview)):
+    if (not 1 <= limit <= 500 or ((send_test or send_preview or send_media_test) and mode != "connect")
+            or sum(map(bool, (send_test, send_preview, send_media_test))) > 1):
         raise ValueError("Opções inválidas")
     if mode == "collect":
         command = [sys.executable, "cloud_run.py", "--check-candidates", "--limit", str(limit)]
     elif mode == "publish":
         command = [sys.executable, "whatsapp_cloud_job.py", "--limit", str(limit)]
+    elif mode == 'verify':
+        command = [sys.executable, 'whatsapp_cloud_job.py', '--verify']
     else:
         command = [sys.executable, "whatsapp_cloud_job.py", "--connect"]
         if send_test:
             command.append("--test")
         if send_preview:
             command.append("--preview")
+        if send_media_test:
+            command.append('--media-test')
     # Não enviar este arquivo a artifacts/caches: pode conter dados privados.
     # O runner é efêmero; banco e sessão continuam persistidos no Supabase.
     folder = Path("reports")
@@ -84,13 +98,14 @@ def run_job(mode, limit=20, send_test=False, send_preview=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("collect", "publish", "connect"))
+    parser.add_argument("mode", choices=("collect", "publish", "connect", "verify"))
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--preview", action="store_true")
+    parser.add_argument('--media-test', action='store_true')
     args = parser.parse_args()
     try:
-        code = run_job(args.mode, args.limit, args.test, args.preview)
+        code = run_job(args.mode, args.limit, args.test, args.preview, args.media_test)
     except Exception:
         # Mensagens de exceção podem conter URLs, credenciais e IDs privados.
         print("Não foi possível executar a tarefa. Consulte a configuração em ambiente privado.", flush=True)

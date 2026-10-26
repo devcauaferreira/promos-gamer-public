@@ -20,6 +20,9 @@ def recover_monitor(env=None, opener=None):
             or env.get('GITHUB_API_URL', 'https://api.github.com') != 'https://api.github.com'):
         raise ValueError('Recuperação exige o ambiente oficial do GitHub Actions.')
     opener = opener or build_opener(NoRedirect())
+    raw_limit = env.get('PROMOS_PRODUCT_LIMIT') or '20'
+    if not re.fullmatch(r'[0-9]{1,3}', raw_limit) or not 1 <= int(raw_limit) <= 500:
+        raise ValueError('Limite de produtos inválido.')
     headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json',
                'Content-Type': 'application/json', 'User-Agent': 'promos-gamer-watchdog'}
     base = 'https://api.github.com/repos/' + repository + '/actions'
@@ -54,7 +57,7 @@ def recover_monitor(env=None, opener=None):
                     print('Rodada ativa encontrada; nenhum disparo adicional.', flush=True)
                     return False
     request('/workflows/promos.yml/dispatches', 'POST',
-            {'ref': 'main', 'inputs': {'publish': 'true', 'limit': '20',
+            {'ref': 'main', 'inputs': {'publish': 'true', 'limit': str(int(raw_limit)),
                                       'source': 'self_chain', 'not_before': ''}})
     print('Monitor sem rodada ativa; recuperação registrada.', flush=True)
     return True

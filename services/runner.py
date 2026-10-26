@@ -55,7 +55,7 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                 except ValueError:
                     key = entry["id"]
                 unique[key] = entry
-            for entry in ([] if queued_only else tracked_entries(db, int(settings.get("discovery", {}).get("max_products_per_run", 20)))):
+            for entry in ([] if queued_only else tracked_entries(db, int(settings.get("discovery", {}).get("max_products_per_run", 20)), exclude_ids=tuple(unique))):
                 unique.setdefault(entry["id"], entry)
             entries = list(unique.values())
             for entry in entries:

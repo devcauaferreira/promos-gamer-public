@@ -139,10 +139,13 @@ def discover(db, browser, settings, force=False, sources=None):
     return report
 
 
-def tracked_entries(db, limit=20):
+def tracked_entries(db, limit=20, exclude_ids=()):
     cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    exclusion = (' AND id NOT IN (' + ','.join('?' for _ in exclude_ids) + ')') if exclude_ids else ''
     rows = db.execute("""SELECT data FROM tracked_products WHERE last_seen>=?
+        """ + exclusion + """
+        AND COALESCE(json_extract(data, '$.enabled'), 1) != 0
         ORDER BY COALESCE(last_checked, ''),
         CASE WHEN json_extract(data, '$.availability_verified') = 1 THEN 0 ELSE 1 END,
-        store, category, id LIMIT ?""", (cutoff, limit)).fetchall()
+        store, category, id LIMIT ?""", (cutoff, *exclude_ids, limit)).fetchall()
     return [json.loads(row[0]) for row in rows]

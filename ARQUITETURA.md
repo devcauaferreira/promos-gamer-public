@@ -261,9 +261,13 @@ Essa separação corrige o cancelamento de um sucessor pendente por um evento
 `schedule` que depois era ignorado pelo `if` do job de produção. Não se deve
 recolocar esse evento no workflow que reserva a fila `promos-gamer-production`.
 O estado `monitor_runs` comprova quando a coleta realmente ocorreu. Cada coleta
-verifica até 20 produtos descobertos em rodízio e só restaura a sessão WhatsApp
+verifica o lote configurado por `PROMOS_PRODUCT_LIMIT` em rodízio e só restaura a sessão WhatsApp
 quando encontra uma oferta aprovada. O teste real
 recebeu confirmação do servidor; envio sem ACK não é registrado como sucesso.
+O modo `verify_only` do workflow de conexão verifica sessão/grupo sem aceitar QR
+nem enviar mensagens. O teste com foto é outro modo explícito, com reserva única;
+uma resposta incerta não libera repetição. A observabilidade persiste a política
+efetiva, fontes, cobertura, etapas dos filtros e última verificação do WhatsApp.
 
 `main.py --sources` verifica configuração/saúde local sem acessar as lojas.
 `main.py --check-source LOJA` verifica uma fonte isolada, sem publicar.

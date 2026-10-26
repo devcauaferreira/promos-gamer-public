@@ -142,6 +142,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (!ready) return respond(res, 503, {error:'WhatsApp desconectado'});
   if (remote && Date.now() - readySince < 15000) return respond(res,503,{error:'Aguardando estabilização da sessão'});
+  let deliveryPhase = 'request';
   try {
     if (req.method === 'GET' && req.url === '/groups') {
       return respond(res, 200, await listGroups());
@@ -179,16 +180,19 @@ const server = http.createServer(async (req, res) => {
         return respond(res, 400, {error:'Imagem inválida'});
       if (!(await listGroups()).some(chat => chat.id === group_id))
         return respond(res, 400, {error:'Grupo não encontrado na sessão conectada'});
+      deliveryPhase = 'send';
       const sent = image
         ? await client.sendMessage(group_id, new MessageMedia(image.mimetype, image.data),
             {caption:message,sendSeen:false,waitUntilMsgSent:true})
         : await client.sendMessage(group_id, message, {sendSeen:false,waitUntilMsgSent:true});
+      deliveryPhase = 'confirmation';
       const message_id = await require('./message_confirmation.cjs').confirmedMessageId(sent);
       return respond(res, 200, { message_id });
     } finally { busy = false; }
   } catch (error) {
     console.error(error.message);
-    respond(res, 500, {error:'Falha na ponte; confira o terminal antes de tentar novamente'});
+    respond(res, 500, {error:'Falha na ponte; confira o terminal antes de tentar novamente',
+      error_code:deliveryPhase === 'confirmation' ? 'confirmation_missing' : 'send_failed'});
   }
 });
 server.listen(8787, '127.0.0.1', () => console.log('Ponte local: http://127.0.0.1:8787'));

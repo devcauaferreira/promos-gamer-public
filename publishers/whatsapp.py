@@ -60,7 +60,13 @@ def product_image(image_url):
         return None
 
 
-def publish(message, group_id, image_url=""):
+class WhatsAppDeliveryError(RuntimeError):
+    def __init__(self, code):
+        self.code = code
+        super().__init__(code)
+
+
+def publish(message, group_id, image_url="", require_image=False):
     token = bridge_token()
     if len(token) < 24:
         raise ValueError("Defina WHATSAPP_BRIDGE_TOKEN com pelo menos 24 caracteres")
@@ -74,14 +80,31 @@ def publish(message, group_id, image_url=""):
         photo = product_image(image_url)
         if photo:
             payload["image"] = photo
+    if require_image and 'image' not in payload:
+        raise ValueError('Foto indisponível antes do envio; nenhuma mensagem enviada.')
     request = Request(base_url + "/send",
                       data=json.dumps(payload).encode(),
                       headers={"Content-Type": "application/json", "Authorization": "Bearer " + token},
                       method="POST")
     from services.http_client import NoRedirect
     from urllib.request import build_opener
-    with build_opener(NoRedirect()).open(request, timeout=90) as response:
-        result = json.load(response)
-    if not result.get("message_id"):
-        raise RuntimeError("WhatsApp não confirmou o identificador da mensagem")
+    from urllib.error import HTTPError, URLError
+    try:
+        with build_opener(NoRedirect()).open(request, timeout=120) as response:
+            result = json.load(response)
+    except HTTPError as error:
+        code = 'whatsapp_bridge_http_error'
+        try:
+            response = json.loads(error.read(8192))
+            if isinstance(response, dict) and response.get('error_code') in ('send_failed', 'confirmation_missing'):
+                code = 'whatsapp_' + response['error_code']
+        except (ValueError, TypeError, OSError):
+            pass
+        finally:
+            error.close()
+        raise WhatsAppDeliveryError(code) from None
+    except (URLError, TimeoutError, OSError, ValueError):
+        raise WhatsAppDeliveryError('whatsapp_transport_unknown') from None
+    if not isinstance(result, dict) or not result.get("message_id"):
+        raise WhatsAppDeliveryError('whatsapp_confirmation_missing')
     return result["message_id"]

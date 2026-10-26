@@ -9,6 +9,8 @@ def build_message(offer, decision):
              "", f"*{offer.title}*", ""]
     if decision.average_cents is not None:
         lines.append(f"📉 Média dos últimos {decision.history_days} dias: {money(decision.average_cents)}")
+        if decision.history_samples:
+            lines.append(f"📊 Base: {decision.history_samples} dia(s) anterior(es) observado(s)")
     lines.append(f"💥 *Agora: {money(offer.price_cents)}*")
     if decision.average_cents is not None:
         lines.append(f"⬇️ {decision.discount_percent:.1f}% abaixo da média".replace(".", ","))

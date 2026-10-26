@@ -32,7 +32,10 @@ def continue_monitor(env=None, opener=None, clock=time.time, sleep=time.sleep):
     if slot > now + 600:
         raise ValueError('Horário futuro excede o limite permitido.')
     next_slot = int(max(now, slot) + 300)
-    payload = {'ref': 'main', 'inputs': {'publish': 'true', 'limit': '20',
+    raw_limit = env.get('PROMOS_PRODUCT_LIMIT') or '20'
+    if not re.fullmatch(r'[0-9]{1,3}', raw_limit) or not 1 <= int(raw_limit) <= 500:
+        raise ValueError('Limite de produtos inválido.')
+    payload = {'ref': 'main', 'inputs': {'publish': 'true', 'limit': str(int(raw_limit)),
                'source': 'self_chain', 'not_before': str(next_slot)}}
     request = Request('https://api.github.com/repos/' + repository + '/actions/workflows/promos.yml/dispatches',
                       data=json.dumps(payload).encode(), method='POST',

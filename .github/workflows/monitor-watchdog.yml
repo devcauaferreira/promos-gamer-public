@@ -23,4 +23,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PROMOS_CLOUD_ENABLED: ${{ vars.PROMOS_CLOUD_ENABLED }}
           PROMOS_CHAIN_ENABLED: ${{ vars.PROMOS_CHAIN_ENABLED }}
+          PROMOS_PRODUCT_LIMIT: ${{ vars.PROMOS_PRODUCT_LIMIT }}
         run: python3 -m scripts.watchdog_monitor

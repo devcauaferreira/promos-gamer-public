@@ -39,8 +39,11 @@ instalação, grupo WhatsApp e cadastro privado ficam nos Secrets do Actions;
 banco, tokens OAuth e sessão cifrada permanecem no Supabase privado.
 
 O workflow agenda um ciclo a cada cinco minutos, sujeito a atrasos do GitHub.
-Cada rodada consulta até 20 produtos descobertos em rodízio, além dos links
+Cada rodada consulta o lote definido em `PROMOS_PRODUCT_LIMIT` (20 se ausente), além dos links
 manuais. A sessão WhatsApp só é iniciada quando a coleta encontra oferta aprovada.
+O setup fixa Ubuntu 24.04, confirma o Chrome já instalado e o compartilha entre
+Playwright e Puppeteer. Não usa `apt` nem baixa outro navegador a cada execução.
+`PROMOS_PRODUCT_LIMIT` também é repassado ao sucessor e à recuperação do watchdog.
 
 Se o cron do GitHub não gerar eventos, `supabase/scheduler.sql` fornece um
 disparador alternativo a cada cinco minutos. Ele foi instalado INATIVO; somente

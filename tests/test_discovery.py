@@ -127,9 +127,28 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(tracked_entries(db, 1)[0]['id'], 'ml-z')
             db.execute('UPDATE tracked_products SET last_checked=? WHERE id=?', (now, 'ml-z'))
             self.assertEqual(tracked_entries(db, 1)[0]['id'], 'ml-a')
+            self.assertEqual(tracked_entries(db, 1, exclude_ids=('ml-a',))[0]['id'], 'ml-z')
             db.execute('UPDATE tracked_products SET last_checked=? WHERE id=?',
                        ('2020-01-01T00:00:00+00:00', 'ml-a'))
             self.assertEqual(tracked_entries(db, 1)[0]['id'], 'ml-a')
+
+    def test_paused_entries_cannot_exhaust_the_round_robin_budget(self):
+        with closing(connect(':memory:')) as db:
+            discover(db, Mock(), {'discovery': {'enabled': False}}, sources={})
+            now = datetime.now(timezone.utc).isoformat()
+            for index in range(3):
+                entry = {'id': f'paused-{index}', 'store': 'kabum', 'enabled': False}
+                db.execute('INSERT INTO tracked_products VALUES (?,?,?,?,?,NULL)',
+                           (entry['id'], 'kabum', 'ssd', json.dumps(entry), now))
+            for key, enabled in [('active', True), ('legacy-without-flag', None)]:
+                entry = {'id': key, 'store': 'kabum'}
+                if enabled is not None:
+                    entry['enabled'] = enabled
+                db.execute('INSERT INTO tracked_products VALUES (?,?,?,?,?,?)',
+                           (key, 'kabum', 'ssd', json.dumps(entry), now, now))
+            for _ in range(2):
+                self.assertEqual([entry['id'] for entry in tracked_entries(db, 2)],
+                                 ['active', 'legacy-without-flag'])
 
 
 if __name__ == "__main__":

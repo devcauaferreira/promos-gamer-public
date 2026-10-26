@@ -1,4 +1,6 @@
 """Seleciona uma fonte por loja, sem fallback silencioso para scraping."""
+import os
+
 from collectors.base import SourceError
 from collectors.catalog import DOMAINS
 
@@ -14,7 +16,9 @@ class LazyBrowser:
         if self.browser is None:
             from playwright.sync_api import sync_playwright
             self.manager = sync_playwright().start()
-            self.browser = self.manager.chromium.launch(headless=not self.visible)
+            executable = os.environ.get('PLAYWRIGHT_BROWSER_PATH', '').strip()
+            options = {'executable_path': executable} if executable else {}
+            self.browser = self.manager.chromium.launch(headless=not self.visible, **options)
         return self.browser.new_page(**kwargs)
 
     def close(self):

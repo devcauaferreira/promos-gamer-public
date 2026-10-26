@@ -114,6 +114,8 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                 if sent >= int(settings.get("max_messages_per_run", 10)):
                     row["send_status"] = "queued: limite desta execução; será reavaliada no próximo ciclo"
                     continue
+                dispatch_attempted = False
+                previous_dispatch = None
                 try:
                     # Confere novamente o anúncio: a busca de todas as lojas pode demorar.
                     current = sources[entry["store"]].collect(entry)
@@ -123,6 +125,10 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                         row["send_status"] = "skipped: anúncio mudou durante a execução"
                         set_state(db, entry, 'stale')
                         continue
+                    previous_dispatch = db.execute(
+                        "SELECT state,message_id,updated_at FROM dispatches WHERE store=? AND product_id=? AND channel=?",
+                        (offer.store, offer.product_id, "whatsapp:" + group)).fetchone()
+                    dispatch_attempted = True
                     if dispatch(db, offer, row["message"], config, group, checkpoint=checkpoint):
                         row["send_status"] = "sent"
                         set_state(db, entry, 'sent')
@@ -131,8 +137,20 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                         row["send_status"] = "blocked: repetição ou tentativa incerta"
                         set_state(db, entry, 'blocked')
                 except Exception as exc:
-                    row["send_error"] = str(exc)
-                    set_state(db, entry, 'uncertain')
+                    current_dispatch = (db.execute(
+                        "SELECT state,message_id,updated_at FROM dispatches WHERE store=? AND product_id=? AND channel=?",
+                        (offer.store, offer.product_id, "whatsapp:" + group)).fetchone()
+                        if dispatch_attempted else None)
+                    changed = current_dispatch is not None and current_dispatch != previous_dispatch
+                    if changed and current_dispatch[0] == 'sent':
+                        row["send_status"] = "sent"
+                        row["persistence_error"] = str(exc)
+                        set_state(db, entry, 'sent')
+                        sent += 1
+                    else:
+                        row["send_error"] = str(exc)
+                        retryable = not dispatch_attempted or not changed or current_dispatch[0] == 'failed_before_send'
+                        set_state(db, entry, 'pending' if retryable else 'uncertain')
                 print(f"Envio {entry['id']}: {row.get('send_status') or row.get('send_error')}", flush=True)
         finally:
             Path("reports").mkdir(exist_ok=True)
@@ -159,21 +177,41 @@ def dispatch(db, offer, message, config, group, checkpoint=None):
     db.execute("INSERT OR REPLACE INTO dispatches VALUES (?, ?, ?, 'sending', NULL, ?)",
                (offer.store, offer.product_id, channel, now.isoformat()))
     db.commit()
+    # Uma falha de reserva remota ocorre antes de qualquer tentativa no WhatsApp.
+    # Não deve tornar permanentemente incerto um envio que não foi iniciado.
     try:
         if checkpoint:
             checkpoint(db)
-        message_id = publish(message, group, image_url=offer.image_url)
-        mark_published(db, offer, channel, now)
-        db.execute("UPDATE dispatches SET state='sent', message_id=? WHERE store=? AND product_id=? AND channel=?",
-                   (message_id, offer.store, offer.product_id, channel))
+    except Exception:
+        db.execute("UPDATE dispatches SET state='failed_before_send' WHERE store=? AND product_id=? AND channel=?",
+                   (offer.store, offer.product_id, channel))
         db.commit()
         if checkpoint:
-            checkpoint(db)
-        return True
+            try:
+                checkpoint(db)
+            except Exception:
+                # Preserva a falha original. Se a persistência continuar indisponível,
+                # o chamador conserva o erro e o estado local para reconciliação.
+                pass
+        raise
+    try:
+        message_id = publish(message, group, image_url=offer.image_url)
     except Exception:
         db.execute("UPDATE dispatches SET state='uncertain' WHERE store=? AND product_id=? AND channel=?",
                    (offer.store, offer.product_id, channel))
         db.commit()
         if checkpoint:
-            checkpoint(db)
+            try:
+                checkpoint(db)
+            except Exception:
+                pass
         raise
+    # A confirmação do WhatsApp já existe. Falhas de persistência posteriores
+    # precisam ser reportadas sem reclassificar a entrega como incerta.
+    mark_published(db, offer, channel, now)
+    db.execute("UPDATE dispatches SET state='sent', message_id=? WHERE store=? AND product_id=? AND channel=?",
+               (message_id, offer.store, offer.product_id, channel))
+    db.commit()
+    if checkpoint:
+        checkpoint(db)
+    return True

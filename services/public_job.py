@@ -27,6 +27,7 @@ def safe_summary():
     print(f"Produtos avaliados: {len(offers)}; ofertas aprovadas: {approved}; sem histórico anterior: {no_history}", flush=True)
     from services.monitoring import summarize
     summary = summarize(offers)
+    print(f"Envios confirmados: {summary['sent']}; erros: {summary['errors']}; pendências de persistência: {summary['persistence_errors']}", flush=True)
     for reason, count in summary['reasons'].items():
         print(f"Filtro: {reason}; produtos: {count}", flush=True)
     for code, count in summary['source_failures'].items():
@@ -53,17 +54,27 @@ def run_job(mode, limit=20, send_test=False, send_preview=False):
     # O runner é efêmero; banco e sessão continuam persistidos no Supabase.
     folder = Path("reports")
     folder.mkdir(exist_ok=True)
+    report_file = folder / 'latest.json'
+    def report_version():
+        try:
+            stat = report_file.stat()
+            return stat.st_mtime_ns, stat.st_size
+        except FileNotFoundError:
+            return None
+    previous_report = report_version()
     print(f"Tarefa {mode} iniciada; saída detalhada restrita ao runner.", flush=True)
     with (folder / "cloud-job-private.log").open("ab") as log:
         result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT)
-    if result.returncode:
-        print(f"Tarefa {mode} falhou. Execute o diagnóstico em ambiente privado.", flush=True)
-        return 1
-    if mode == "collect":
+    # Uma falha antes da coleta/publicação não pode apresentar o relatório
+    # antigo de outra etapa como resultado desta execução.
+    if mode in ('collect', 'publish') and report_version() != previous_report:
         try:
             safe_summary()
         except (OSError, ValueError, TypeError):
             print("Resumo indisponível; dados detalhados mantidos no runner.", flush=True)
+    if result.returncode:
+        print(f"Tarefa {mode} falhou. Execute o diagnóstico em ambiente privado.", flush=True)
+        return 1
     print(f"Tarefa {mode} concluída.", flush=True)
     return 0
 

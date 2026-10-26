@@ -61,3 +61,28 @@ class PublicJobTests(unittest.TestCase):
                 self.assertNotIn("secret", output.getvalue())
             finally:
                 os.chdir(previous)
+
+    def test_publish_failure_reports_new_delivery_counts_but_not_old_collect_report(self):
+        import json
+        previous = Path.cwd()
+        with tempfile.TemporaryDirectory() as folder:
+            os.chdir(folder)
+            try:
+                Path('reports').mkdir()
+                Path('reports/sources.json').write_text('[]')
+                Path('reports/latest.json').write_text(json.dumps([{'send_status': 'sent'}] * 50))
+                output = io.StringIO()
+                with patch('services.public_job.subprocess.run', return_value=Mock(returncode=1)), contextlib.redirect_stdout(output):
+                    self.assertEqual(run_job('publish'), 1)
+                self.assertNotIn('Envios confirmados:', output.getvalue())
+                def child(command, stdout, stderr):
+                    Path('reports/latest.json').write_text(json.dumps([
+                        {'send_status': 'sent'}, {'send_error': 'private-token-detail'}]))
+                    return Mock(returncode=1)
+                output = io.StringIO()
+                with patch('services.public_job.subprocess.run', side_effect=child), contextlib.redirect_stdout(output):
+                    self.assertEqual(run_job('publish'), 1)
+                self.assertIn('Envios confirmados: 1; erros: 1', output.getvalue())
+                self.assertNotIn('private-token-detail', output.getvalue())
+            finally:
+                os.chdir(previous)

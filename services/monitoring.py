@@ -18,6 +18,7 @@ def summarize(report):
             'approved': sum(row.get('decision', {}).get('status') == 'approved' for row in report),
             'sent': sum(row.get('send_status') == 'sent' for row in report),
             'errors': sum(bool(row.get('error') or row.get('send_error')) for row in report),
+            'persistence_errors': sum(bool(row.get('persistence_error')) for row in report),
             'reasons': dict(reasons),
             'source_failures': dict(Counter(row.get('status') for row in report
                                            if row.get('status') in SOURCE_FAILURES))}

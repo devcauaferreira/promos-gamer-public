@@ -26,3 +26,10 @@ class MonitoringTests(unittest.TestCase):
         self.assertEqual(value['sent'], 1)
         self.assertEqual(value['source_failures'], {'catalog_mapping_required': 1})
         self.assertNotIn('secret', json.dumps(value))
+
+    def test_confirmed_delivery_and_persistence_failure_are_distinct(self):
+        value = summarize([{'send_status': 'sent', 'persistence_error': 'private database detail'}])
+        self.assertEqual(value['sent'], 1)
+        self.assertEqual(value['errors'], 0)
+        self.assertEqual(value['persistence_errors'], 1)
+        self.assertNotIn('private', json.dumps(value))

@@ -28,17 +28,11 @@ def configure(limit=None):
     return config
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--send", action="store_true")
-    parser.add_argument("--check-candidates", action="store_true",
-                        help="Coleta e indica se há oferta aprovada antes de iniciar o WhatsApp")
-    parser.add_argument("--limit", type=int, help="Limita produtos descobertos neste ciclo de validação")
-    args = parser.parse_args()
-    if args.send and args.check_candidates:
-        parser.error("Use --send ou --check-candidates, não ambos")
-    config = configure(limit=args.limit)
-    if args.send:
+def execute(send=False, check_candidates=False, limit=None):
+    if send and check_candidates:
+        raise ValueError("Use --send ou --check-candidates, não ambos")
+    config = configure(limit=limit)
+    if send:
         from publishers.whatsapp import validate_publish_bridge
         validate_publish_bridge()
     state = CloudState(config.database_path)
@@ -48,22 +42,37 @@ if __name__ == "__main__":
     import os
     run_id = uuid4().hex
     with closing(connect(config.database_path)) as db:
-        start_run(db, run_id, 'publish' if args.send else 'collect',
+        start_run(db, run_id, 'publish' if send else 'collect',
                   os.environ.get('MONITOR_TRIGGER') or os.environ.get('GITHUB_EVENT_NAME', 'local'))
         state.checkpoint(db)
     from services.runner import cycle
     report, completed = [], False
     try:
-        report = cycle(send=args.send, checkpoint=state.checkpoint, queued_only=args.send)
+        report = cycle(send=send, checkpoint=state.checkpoint, queued_only=send)
         completed = True
     finally:
         # Se o processo for morto, reservas de envio já foram persistidas antes da rede.
         with closing(connect(config.database_path)) as db:
-            finish_run(db, run_id, 'completed' if completed else 'failed', report)
+            delivery_problem = send and any(row.get('send_error') or row.get('persistence_error') for row in report)
+            status = 'requires_attention' if completed and delivery_problem else 'completed' if completed else 'failed'
+            finish_run(db, run_id, status, report)
             state.checkpoint(db)
-    if args.check_candidates:
+    if check_candidates:
         from services.outbox import pending
         with closing(connect(config.database_path)) as db:
             approved = len(pending(db))
         Path("reports/has_candidates.txt").write_text("true\n" if approved else "false\n", encoding="ascii")
         print(f"Ofertas aprovadas nesta coleta: {approved}", flush=True)
+    return 1 if delivery_problem else 0
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--send", action="store_true")
+    parser.add_argument("--check-candidates", action="store_true",
+                        help="Coleta e indica se há oferta aprovada antes de iniciar o WhatsApp")
+    parser.add_argument("--limit", type=int, help="Limita produtos descobertos neste ciclo de validação")
+    args = parser.parse_args()
+    if args.send and args.check_candidates:
+        parser.error("Use --send ou --check-candidates, não ambos")
+    raise SystemExit(execute(args.send, args.check_candidates, args.limit))

@@ -64,6 +64,59 @@ class CloudTests(unittest.TestCase):
         finally:
             db.close()
 
+    def dispatch_fixture(self):
+        db = connect(':memory:')
+        self.addCleanup(db.close)
+        db.execute('create table dispatches(store text, product_id text, channel text,state text,message_id text,updated_at text,primary key(store,product_id,channel))')
+        offer = Offer('kabum','cpu','Processador Ryzen','KaBuM!',38000,None,'PIX',True,
+                      'https://www.kabum.com.br/produto/1',shipped_by='KaBuM!')
+        now = datetime.now(timezone.utc)
+        for day in (1,2,3):
+            record_price(db,'kabum','cpu',49000,now-timedelta(days=day))
+        return db, offer, Config()
+
+    def test_reservation_failure_can_retry_without_prior_whatsapp_attempt(self):
+        db, offer, config = self.dispatch_fixture()
+        attempts = []
+        def checkpoint(connection):
+            attempts.append(connection.execute('select state from dispatches').fetchone()[0])
+            if len(attempts) == 1:
+                raise RuntimeError('temporary persistence failure')
+        with patch('services.runner.publish',return_value='confirmed-id') as publish:
+            with self.assertRaisesRegex(RuntimeError,'temporary persistence failure'):
+                dispatch(db,offer,'message',config,'test@g.us',checkpoint=checkpoint)
+            publish.assert_not_called()
+            self.assertEqual(attempts,['sending','failed_before_send'])
+            self.assertEqual(db.execute('select count(*) from publications').fetchone()[0],0)
+            self.assertTrue(dispatch(db,offer,'message',config,'test@g.us',checkpoint=checkpoint))
+            publish.assert_called_once()
+
+    def test_whatsapp_timeout_remains_uncertain_and_cannot_repeat(self):
+        db, offer, config = self.dispatch_fixture()
+        with patch('services.runner.publish',side_effect=TimeoutError('ack unknown')) as publish:
+            with self.assertRaises(TimeoutError):
+                dispatch(db,offer,'message',config,'test@g.us',checkpoint=lambda connection: None)
+            self.assertEqual(db.execute('select state from dispatches').fetchone()[0],'uncertain')
+            self.assertFalse(dispatch(db,offer,'message',config,'test@g.us'))
+            publish.assert_called_once()
+            self.assertEqual(db.execute('select count(*) from publications').fetchone()[0],0)
+
+    def test_final_checkpoint_failure_preserves_confirmed_delivery(self):
+        db, offer, config = self.dispatch_fixture()
+        attempts = []
+        def checkpoint(connection):
+            attempts.append(connection.execute('select state from dispatches').fetchone()[0])
+            if len(attempts) == 2:
+                raise RuntimeError('final persistence unavailable')
+        with patch('services.runner.publish',return_value='confirmed-id') as publish:
+            with self.assertRaisesRegex(RuntimeError,'final persistence unavailable'):
+                dispatch(db,offer,'message',config,'test@g.us',checkpoint=checkpoint)
+            self.assertEqual(attempts,['sending','sent'])
+            self.assertEqual(db.execute('select state,message_id from dispatches').fetchone(),('sent','confirmed-id'))
+            self.assertEqual(db.execute('select count(*) from publications').fetchone()[0],1)
+            self.assertFalse(dispatch(db,offer,'message',config,'test@g.us'))
+            publish.assert_called_once()
+
     def test_cloud_cannot_use_local_whatsapp_bridge(self):
         for url in ('http://127.0.0.1:8787', 'https://localhost:8787', ''):
             with patch('publishers.whatsapp.secret', return_value=url), self.assertRaises(ValueError):

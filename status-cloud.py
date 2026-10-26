@@ -25,6 +25,8 @@ def main():
                     info = json.loads(row[5])
                     print('Avaliados:', info['evaluated'], '| aprovados:', info['approved'],
                           '| enviados:', info['sent'], '| erros:', info['errors'])
+                    if info.get('persistence_errors'):
+                        print('Envios confirmados com pendência de persistência:', info['persistence_errors'])
                     for reason, count in info['reasons'].items():
                         print(reason + ':', count)
                     for code, count in info.get('source_failures', {}).items():

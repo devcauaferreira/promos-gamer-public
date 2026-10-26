@@ -227,7 +227,7 @@ foto oficial correspondente ao produto, ela é enviada com a mensagem como legen
 se a foto falhar antes do envio, segue apenas o texto. A imagem do exemplo de
 terceiros não é reutilizada e o preço riscado anunciado não vira referência.
 O agendamento do GitHub é configurado a cada cinco minutos, mas pode atrasar
-ou perder eventos; confirme execuções com evento `schedule` na aba Actions.
+ou perder eventos; confirme a coleta persistida e as rodadas `self_chain` na aba Actions.
 
 Na nuvem, `.github/workflows/promos.yml` executa `cloud_run.py` uma vez por job.
 Cada coleta registra início, término, origem (`schedule` ou manual), contagens
@@ -251,9 +251,15 @@ ler um novo QR e validar restauração em outro job; ambos foram concluídos no 
 Jobs de conexão e monitor compartilham o mesmo grupo de concorrência. O agendamento
 não mantém o WhatsApp conectado entre execuções e pode exigir nova autorização.
 O histórico foi migrado e o monitor local foi encerrado. Coleta e publicação estão
-configuradas no Actions a cada 5 minutos, somente para ofertas aprovadas. Ainda
-não houve evento `schedule` observado; o monitor usa `self_chain`, com uma rodada
+configuradas no Actions a cada 5 minutos, somente para ofertas aprovadas. O monitor usa `self_chain`, com uma rodada
 registrando a próxima por `workflow_dispatch` e respeitando o horário mínimo.
+O agendamento nativo fica exclusivamente em `monitor-watchdog.yml`, em outro
+grupo de concorrência. Ele consulta as rodadas de coleta/conexão ativas e só
+reinicia o encadeamento se nenhuma existir. Erros nessa consulta não autorizam
+um disparo às cegas, e um POST com resposta incerta não é repetido no mesmo job.
+Essa separação corrige o cancelamento de um sucessor pendente por um evento
+`schedule` que depois era ignorado pelo `if` do job de produção. Não se deve
+recolocar esse evento no workflow que reserva a fila `promos-gamer-production`.
 O estado `monitor_runs` comprova quando a coleta realmente ocorreu. Cada coleta
 verifica até 20 produtos descobertos em rodízio e só restaura a sessão WhatsApp
 quando encontra uma oferta aprovada. O teste real

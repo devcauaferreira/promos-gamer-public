@@ -1,0 +1,26 @@
+name: Verificar continuidade do monitor
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: promos-gamer-watchdog
+  cancel-in-progress: false
+jobs:
+  watchdog:
+    if: ${{ vars.PROMOS_CLOUD_ENABLED == 'true' && vars.PROMOS_CHAIN_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Recuperar monitor somente se nenhuma rodada estiver ativa
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROMOS_CLOUD_ENABLED: ${{ vars.PROMOS_CLOUD_ENABLED }}
+          PROMOS_CHAIN_ENABLED: ${{ vars.PROMOS_CHAIN_ENABLED }}
+        run: python3 -m scripts.watchdog_monitor

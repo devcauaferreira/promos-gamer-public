@@ -1,9 +1,6 @@
 name: Promos Gamer
 
 on:
-  schedule:
-    # UTC; a cada 5 minutos. O GitHub pode atrasar execuções.
-    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       publish:
@@ -38,7 +35,7 @@ concurrency:
 jobs:
   monitor:
     # Habilitar somente depois de configurar Supabase e secrets.
-    if: ${{ vars.PROMOS_CLOUD_ENABLED == 'true' && (github.event_name != 'schedule' || vars.PROMOS_CHAIN_ENABLED != 'true') }}
+    if: ${{ vars.PROMOS_CLOUD_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:

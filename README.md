@@ -3,6 +3,8 @@
 O monitor usa GitHub Actions com rodadas encadeadas a cada 5 minutos. Cada job
 cria a próxima rodada com seu token temporário; `self_chain` identifica os disparos
 automáticos no estado privado. `PROMOS_CHAIN_ENABLED` controla a continuação.
+Um watchdog em fila separada verifica a continuidade pelo agendamento nativo e
+recupera a cadeia se não houver rodada ativa; atrasos do GitHub continuam possíveis.
 A sessão WhatsApp da nuvem foi conectada, salva com criptografia e restaurada em
 outro runner; uma mensagem de teste recebeu confirmação do servidor. O computador
 pode ficar desligado. Veja [DEPLOY.md](DEPLOY.md) para operação e reconexão.

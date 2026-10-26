@@ -19,15 +19,18 @@ fornecido somente à etapa de continuação. Não é armazenado no Supabase, `.e
 banco ou relatórios. Esse uso de `workflow_dispatch` com `GITHUB_TOKEN` é
 [documentado pelo GitHub](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
 Não execute `configurar-agendador.cmd` para este modo: o disparador Supabase
-permanece inativo. O cron nativo não executa o monitor enquanto o encadeamento
-estiver habilitado, evitando dois relógios simultâneos.
+permanece inativo. O cron nativo executa somente `monitor-watchdog.yml`, com fila
+separada: verifica se o monitor ou a conexão WhatsApp têm uma rodada ativa e
+reinicia o encadeamento apenas quando não há nenhuma. Ele não cancela a próxima
+rodada de produção nem executa a coleta diretamente.
 
 Para pausar os próximos ciclos, defina `PROMOS_CLOUD_ENABLED=false` e
 `PROMOS_CHAIN_ENABLED=false` nas Variables do Actions; cancele jobs pendentes ou
 em andamento se precisar de interrupção imediata. `ENABLE_WHATSAPP_PUBLISH=false`
 interrompe apenas publicações. Para retomar após interrupção da cadeia, habilite
-as variáveis e execute manualmente `Promos Gamer` uma vez. Falha de infraestrutura
-antes de registrar a sucessora pode exigir esse reinício manual.
+as variáveis e execute manualmente `Promos Gamer` uma vez, ou
+`Verificar continuidade do monitor`. O watchdog também recupera interrupções
+quando recebe o próximo evento agendado; esse evento pode atrasar no GitHub.
 `status-cloud.py` mostra o horário real de coleta e a origem `self_chain`.
 Uma rodada pendente no Actions é esperada enquanto outra estiver ativa.
 
@@ -171,9 +174,11 @@ Amazon, Magalu e Pichau continuam dependendo de fontes autorizadas próprias.
 
 ## Configurar o GitHub
 
-O workflow `.github/workflows/promos.yml` agenda um ciclo a cada 5 minutos,
-começando no minuto 3 de cada hora UTC. Possui disparo manual, limite de 25 minutos
-e concorrência única.
+O workflow `.github/workflows/promos.yml` encadeia ciclos com intervalo mínimo
+de cinco minutos. Possui disparo manual, limite de 25 minutos e concorrência única.
+`.github/workflows/monitor-watchdog.yml` tem cron `*/5 * * * *`, em UTC, e um grupo
+de concorrência separado. Não adicione `schedule` ao workflow de produção: até
+uma execução posteriormente ignorada pode substituir o sucessor pendente.
 Ele não faz commits de banco, tokens ou relatórios no repositório.
 
 Cadastre em **Settings → Secrets and variables → Actions → Secrets**:

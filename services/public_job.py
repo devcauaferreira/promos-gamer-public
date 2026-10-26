@@ -61,6 +61,7 @@ def safe_failure_code(log_path):
             "whatsapp_browser_executable_missing", "whatsapp_browser_launch_failed",
             "whatsapp_browser_protocol_error", "whatsapp_web_initialization_timeout",
             "whatsapp_session_network_error", "whatsapp_initialization_failed",
+            "whatsapp_dependency_missing",
             *(f"whatsapp_session_http_{status}" for status in (401, 403, 404, 409, 429, 500, 502, 503, 504)),
         }
         if match.group(1) in allowed:

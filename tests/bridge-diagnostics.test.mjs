@@ -8,5 +8,7 @@ test('bridge errors map to fixed diagnostics without exposing message content', 
   assert.equal(classifyBridgeError(new Error('Persistência WhatsApp HTTP 403 secret-token')), 'whatsapp_session_http_403');
   assert.equal(classifyBridgeError(new Error('Failed to launch the browser process! private path')), 'whatsapp_browser_launch_failed');
   assert.equal(classifyBridgeError(new Error('Protocol error (Target.createTarget): Target closed')), 'whatsapp_browser_protocol_error');
+  assert.equal(classifyBridgeError(Object.assign(new Error('spawn failed'), {code: 'ENOENT'})), 'whatsapp_browser_executable_missing');
+  assert.equal(classifyBridgeError(new Error('Cannot find module whatsapp-web.js')), 'whatsapp_dependency_missing');
   assert.equal(classifyBridgeError(new Error('unexpected private exception')), 'whatsapp_initialization_failed');
 });

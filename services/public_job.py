@@ -98,10 +98,11 @@ def safe_failure_code(log_path):
     return "child_failed"
 
 
-def run_job(mode, limit=20, send_test=False, send_preview=False, send_media_test=False):
+def run_job(mode, limit=20, send_test=False, send_preview=False, send_media_test=False, reset_session=False):
     if mode not in ("collect", "publish", "connect", "verify"):
         raise ValueError("Tarefa não suportada")
-    if (not 1 <= limit <= 500 or ((send_test or send_preview or send_media_test) and mode != "connect")
+    if (not 1 <= limit <= 500 or (reset_session and (mode != 'connect' or send_test or send_preview or send_media_test))
+            or ((send_test or send_preview or send_media_test) and mode != "connect")
             or sum(map(bool, (send_test, send_preview, send_media_test))) > 1):
         raise ValueError("Opções inválidas")
     if mode == "collect":
@@ -112,6 +113,8 @@ def run_job(mode, limit=20, send_test=False, send_preview=False, send_media_test
         command = [sys.executable, 'whatsapp_cloud_job.py', '--verify']
     else:
         command = [sys.executable, "whatsapp_cloud_job.py", "--connect"]
+        if reset_session:
+            command.append('--reset-session')
         if send_test:
             command.append("--test")
         if send_preview:
@@ -155,9 +158,10 @@ if __name__ == "__main__":
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--preview", action="store_true")
     parser.add_argument('--media-test', action='store_true')
+    parser.add_argument('--reset-session', action='store_true')
     args = parser.parse_args()
     try:
-        code = run_job(args.mode, args.limit, args.test, args.preview, args.media_test)
+        code = run_job(args.mode, args.limit, args.test, args.preview, args.media_test, args.reset_session)
     except Exception:
         # Mensagens de exceção podem conter URLs, credenciais e IDs privados.
         print("Não foi possível executar a tarefa. Consulte a configuração em ambiente privado.", flush=True)

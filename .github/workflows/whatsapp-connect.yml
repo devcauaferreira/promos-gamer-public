@@ -18,6 +18,10 @@ on:
         description: Enviar o único teste com foto explicitamente autorizado
         type: boolean
         default: false
+      reset_session:
+        description: Apagar a sessão remota e aguardar novo QR (sem envio)
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: write
@@ -34,6 +38,7 @@ jobs:
       SEND_PREVIEW: ${{ inputs.send_preview }}
       VERIFY_ONLY: ${{ inputs.verify_only }}
       SEND_MEDIA_TEST: ${{ inputs.send_media_test }}
+      RESET_SESSION: ${{ inputs.reset_session }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -68,6 +73,8 @@ jobs:
             python -m services.public_job connect --preview
           elif [ "$SEND_TEST" = "true" ]; then
             python -m services.public_job connect --test
+          elif [ "$RESET_SESSION" = "true" ]; then
+            python -m services.public_job connect --reset-session
           else
             python -m services.public_job connect
           fi

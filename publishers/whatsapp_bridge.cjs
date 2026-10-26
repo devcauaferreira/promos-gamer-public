@@ -201,7 +201,14 @@ const server = http.createServer(async (req, res) => {
   }
 });
 server.listen(8787, '127.0.0.1', () => console.log('Ponte local: http://127.0.0.1:8787'));
-client.initialize().catch(error => { logBridgeDiagnostic(error); process.exit(1); });
+async function startClient() {
+  // A stale/corrupt remote archive can prevent whatsapp-web.js from reaching
+  // the QR event. Reset is explicit and is only exposed by the connect job.
+  if (remote && process.env.WHATSAPP_RESET_SESSION === 'true')
+    await store.delete({session:'RemoteAuth-promos-gamer'});
+  await client.initialize();
+}
+startClient().catch(error => { logBridgeDiagnostic(error); process.exit(1); });
 let stopping = false;
 async function stop(code = 0, save = true) {
   if (stopping) return;

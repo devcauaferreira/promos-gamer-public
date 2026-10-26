@@ -230,7 +230,7 @@ def reconcile_media_test(config, token):
                   + '; confirmado=False; nenhuma nova mensagem enviada.', flush=True)
 
 
-def run(connect_only=False, limit=20, send_test=False, send_preview=False, verify_only=False, send_media_test=False):
+def run(connect_only=False, limit=20, send_test=False, send_preview=False, verify_only=False, send_media_test=False, reset_session=False):
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise ValueError("Este comando deve ser executado no GitHub Actions")
     if verify_only and (send_test or send_preview or send_media_test):
@@ -240,7 +240,10 @@ def run(connect_only=False, limit=20, send_test=False, send_preview=False, verif
     if send_validation and not connect_only or sum(map(bool, (send_test, send_preview, send_media_test))) > 1:
         raise ValueError("Envio de validação exige um único modo explícito de conexão")
     config = configure(limit)
+    if reset_session and (not connect_only or send_validation or verify_only):
+        raise ValueError('Reset de sessão só pode ser usado na conexão sem envio.')
     env = dict(os.environ, WHATSAPP_AUTH_MODE="supabase", WHATSAPP_ALLOW_QR=str(connect_only and not (send_validation or verify_only)).lower(),
+               WHATSAPP_RESET_SESSION=str(bool(reset_session)).lower(),
                WHATSAPP_BRIDGE_TOKEN=secrets.token_hex(32), WHATSAPP_RUNNER_BRIDGE="true")
     process = subprocess.Popen(["node", "publishers/whatsapp_bridge.cjs"], env=env)
     try:
@@ -327,8 +330,10 @@ if __name__ == "__main__":
     parser.add_argument("--connect", action="store_true")
     parser.add_argument('--verify', action='store_true', help='Verifica sessão/grupo sem QR nem mensagens')
     parser.add_argument('--media-test', action='store_true', help='Teste único com foto explicitamente autorizado')
+    parser.add_argument('--reset-session', action='store_true', help='Apaga a sessão remota e aguarda um novo QR; sem envio')
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--test", action="store_true", help="Enviar uma mensagem técnica explicitamente solicitada, sem repetir no mesmo run")
     parser.add_argument("--preview", action="store_true", help="Enviar uma única prévia real sem alegar promoção aprovada")
     args = parser.parse_args()
-    run(args.connect, args.limit, args.test, args.preview, verify_only=args.verify, send_media_test=args.media_test)
+    run(args.connect, args.limit, args.test, args.preview, verify_only=args.verify, send_media_test=args.media_test,
+        reset_session=args.reset_session)

@@ -6,6 +6,9 @@ from datetime import datetime, timezone
 REASONS = ('Histórico insuficiente', 'Queda abaixo do mínimo exigido',
            'Oferta indisponível', 'Oferta publicada recentemente',
            'Condições de pagamento desconhecidas')
+SOURCE_FAILURES = ('catalog_mapping_required', 'catalog_item_missing', 'needs_authorized_feed',
+                   'access_denied', 'auth_required', 'oauth_pending', 'network_error',
+                   'rate_limited', 'invalid_response', 'wholesale_review')
 
 
 def summarize(report):
@@ -15,7 +18,9 @@ def summarize(report):
             'approved': sum(row.get('decision', {}).get('status') == 'approved' for row in report),
             'sent': sum(row.get('send_status') == 'sent' for row in report),
             'errors': sum(bool(row.get('error') or row.get('send_error')) for row in report),
-            'reasons': dict(reasons)}
+            'reasons': dict(reasons),
+            'source_failures': dict(Counter(row.get('status') for row in report
+                                           if row.get('status') in SOURCE_FAILURES))}
 
 
 def start_run(db, run_id, mode, event):

@@ -21,7 +21,8 @@ class MonitoringTests(unittest.TestCase):
             self.assertNotIn('private-detail', payload)
 
     def test_failed_collection_is_counted_without_exposing_error(self):
-        value = summarize([{'error': 'secret URL'}, {'send_status': 'sent'}])
+        value = summarize([{'error': 'secret URL', 'status': 'catalog_mapping_required'}, {'send_status': 'sent'}])
         self.assertEqual(value['errors'], 1)
         self.assertEqual(value['sent'], 1)
+        self.assertEqual(value['source_failures'], {'catalog_mapping_required': 1})
         self.assertNotIn('secret', json.dumps(value))

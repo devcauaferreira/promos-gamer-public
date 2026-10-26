@@ -27,6 +27,8 @@ def main():
                           '| enviados:', info['sent'], '| erros:', info['errors'])
                     for reason, count in info['reasons'].items():
                         print(reason + ':', count)
+                    for code, count in info.get('source_failures', {}).items():
+                        print('Pendência ' + code + ':', count)
         else:
             print('Registro de ciclos ainda não implantado; consulta ao histórico abaixo.')
         if 'prices' in tables:

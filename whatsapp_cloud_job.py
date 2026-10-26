@@ -77,6 +77,9 @@ def send_preview_once(config):
     state = CloudState(config.database_path)
     state.restore()
     with closing(connect(config.database_path)) as db:
+        if db.execute("SELECT 1 FROM publications LIMIT 1").fetchone():
+            print("Promoção real já publicada; prévia desnecessária.", flush=True)
+            return
         db.execute("""CREATE TABLE IF NOT EXISTS whatsapp_previews (
             preview_key TEXT PRIMARY KEY, state TEXT NOT NULL,
             run_id TEXT NOT NULL, message_id TEXT)""")

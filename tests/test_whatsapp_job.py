@@ -2,6 +2,7 @@ import io
 import json
 import os
 import tempfile
+from contextlib import closing
 from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
@@ -9,7 +10,7 @@ from unittest.mock import Mock, patch
 from whatsapp_cloud_job import run
 from whatsapp_cloud_job import send_test_once, send_preview_once
 from config import Config
-from database.models import Offer
+from database.models import Offer, connect
 
 
 class WhatsAppJobTests(unittest.TestCase):
@@ -117,4 +118,20 @@ class WhatsAppJobTests(unittest.TestCase):
                 with patch.dict('os.environ', {'GITHUB_RUN_ID':'5678'}):
                     send_preview_once(config)
                 publish.assert_called_once()
+            finally: os.chdir(previous)
+
+    @patch.dict('os.environ', {'GITHUB_RUN_ID':'1234'})
+    @patch('services.cloud.CloudState')
+    @patch('publishers.whatsapp.publish')
+    def test_preview_skips_when_real_promotion_was_published(self, publish, state):
+        previous = Path.cwd()
+        with tempfile.TemporaryDirectory() as folder:
+            os.chdir(folder)
+            try:
+                Path('settings.json').write_text(json.dumps({'whatsapp_group_id':'test@g.us'}))
+                with closing(connect('test.sqlite3')) as db:
+                    db.execute("INSERT INTO publications VALUES ('kabum','cpu','whatsapp:test@g.us','2026-10-26T00:00:00+00:00')")
+                    db.commit()
+                send_preview_once(Config(database_path=Path('test.sqlite3')))
+                publish.assert_not_called()
             finally: os.chdir(previous)

@@ -25,6 +25,9 @@ def safe_summary():
     approved = sum(row.get("decision", {}).get("status") == "approved" for row in offers)
     no_history = sum("Histórico insuficiente" in row.get("decision", {}).get("reasons", ()) for row in offers)
     print(f"Produtos avaliados: {len(offers)}; ofertas aprovadas: {approved}; sem histórico anterior: {no_history}", flush=True)
+    from services.monitoring import summarize
+    for reason, count in summarize(offers)['reasons'].items():
+        print(f"Filtro: {reason}; produtos: {count}", flush=True)
 
 
 def run_job(mode, limit=20, send_test=False, send_preview=False):

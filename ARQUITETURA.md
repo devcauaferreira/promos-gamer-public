@@ -194,6 +194,13 @@ O agendamento do GitHub é configurado a cada cinco minutos, mas pode atrasar
 ou perder eventos; confirme execuções com evento `schedule` na aba Actions.
 
 Na nuvem, `.github/workflows/promos.yml` executa `cloud_run.py` uma vez por job.
+Cada coleta registra início, término, origem (`schedule` ou manual), contagens
+e motivos dos filtros em `monitor_runs`, dentro do estado privado do Supabase.
+`python status-cloud.py` consulta esse resumo sem enviar mensagens.
+Ofertas aprovadas entram em `pending_offers` com o produto e preço exatos. A etapa
+de publicação restaura essa fila e revalida os mesmos anúncios, sem selecionar
+outro lote do rodízio. Candidatos com mais de 30 minutos expiram; mudanças de
+preço, vendedor ou condição invalidam o candidato até uma nova coleta.
 O estado é persistido privadamente no Supabase antes e após envios. A conexão do
 WhatsApp pode usar `whatsapp_cloud_job.py`: o job restaura a sessão RemoteAuth,
 abre a ponte somente no loopback do próprio runner, verifica conexão/grupo e sessão
@@ -208,7 +215,9 @@ ler um novo QR e validar restauração em outro job; ambos foram concluídos no 
 Jobs de conexão e monitor compartilham o mesmo grupo de concorrência. O agendamento
 não mantém o WhatsApp conectado entre execuções e pode exigir nova autorização.
 O histórico foi migrado e o monitor local foi encerrado. Coleta e publicação estão
-ativadas no Actions a cada 5 minutos, somente para ofertas aprovadas. Cada coleta
+configuradas no Actions a cada 5 minutos, somente para ofertas aprovadas. Ainda
+não houve evento `schedule` observado; o cron configurado não comprova execução
+automática. Cada coleta
 verifica até 20 produtos descobertos em rodízio e só restaura a sessão WhatsApp
 quando encontra uma oferta aprovada. O teste real
 recebeu confirmação do servidor; envio sem ACK não é registrado como sucesso.

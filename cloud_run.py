@@ -43,14 +43,27 @@ if __name__ == "__main__":
         validate_publish_bridge()
     state = CloudState(config.database_path)
     state.restore()
+    from services.monitoring import start_run, finish_run
+    from uuid import uuid4
+    import os
+    run_id = uuid4().hex
+    with closing(connect(config.database_path)) as db:
+        start_run(db, run_id, 'publish' if args.send else 'collect',
+                  os.environ.get('GITHUB_EVENT_NAME', 'local'))
+        state.checkpoint(db)
     from services.runner import cycle
+    report, completed = [], False
     try:
-        report = cycle(send=args.send, checkpoint=state.checkpoint)
+        report = cycle(send=args.send, checkpoint=state.checkpoint, queued_only=args.send)
+        completed = True
     finally:
         # Se o processo for morto, reservas de envio já foram persistidas antes da rede.
         with closing(connect(config.database_path)) as db:
+            finish_run(db, run_id, 'completed' if completed else 'failed', report)
             state.checkpoint(db)
     if args.check_candidates:
-        approved = sum(row.get("decision", {}).get("status") == "approved" for row in report)
+        from services.outbox import pending
+        with closing(connect(config.database_path)) as db:
+            approved = len(pending(db))
         Path("reports/has_candidates.txt").write_text("true\n" if approved else "false\n", encoding="ascii")
         print(f"Ofertas aprovadas nesta coleta: {approved}", flush=True)

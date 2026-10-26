@@ -15,6 +15,7 @@ privado no Supabase e envio para um grupo do WhatsApp.
 | Revalidar oferta, reservar envio antes da chamada externa e marcar entrega incerta | Já implementado no fluxo do WhatsApp; falhas ambíguas não geram reenvio automático. |
 | Renovar OAuth e persistir tokens | Já implementado na função privada do Supabase. |
 | Workers separados para coleta e entrega | O workflow separa a coleta do início da sessão WhatsApp; esta só inicia quando há candidato aprovado. |
+| Alerta persistido entre coleta e entrega | Foi corrigida a passagem entre etapas: `pending_offers` preserva o anúncio exato e o preço aprovado. O publicador consome a fila com validade de 30 minutos e revalidação, em vez de coletar outro lote do rodízio. |
 | Serviço sempre ligado com `fixedDelay` | Não cabe diretamente no GitHub Actions. O cron do GitHub está configurado, mas ainda não houve evento `schedule` observado. Para cadência garantida, seria necessário outro disparador ou serviço persistente. |
 | Amazon declarada pendente | Mesma conclusão aqui. Credenciais de comprador não habilitam a Creators API; Magalu e Pichau também aguardam fontes autorizadas. |
 
@@ -31,3 +32,9 @@ Antes de habilitar publicação automática do catálogo, confirmar uma fonte
 autorizada e verificável de disponibilidade, condição de venda e link que abre
 o anúncio exato; então testar um único anúncio e sua revalidação. Para as demais
 lojas, conectar feeds/autorização reais e testar venda e entrega pela própria loja.
+
+Verificação operacional em 25/10: cinco ciclos manuais concluídos, nenhum evento
+`schedule` observado. As evidências validam execução manual e persistência,
+mas ainda não confirmam operação autônoma a cada cinco minutos. O resumo de cada
+novo ciclo fica em `monitor_runs`; `python status-cloud.py` mostra o último resultado
+sem divulgar grupo, credenciais ou links privados.

@@ -16,9 +16,10 @@ from services.settings import load_settings
 from collectors.discovery import discover, tracked_entries
 from collectors.catalog import canonical_product
 from services.niche import category_for
+from services.outbox import ensure_outbox, enqueue, pending, set_state, same_offer
 
 
-def cycle(send=False, visible=False, discover_only=False, force_discovery=False, checkpoint=None):
+def cycle(send=False, visible=False, discover_only=False, force_discovery=False, checkpoint=None, queued_only=False):
     config, settings = load_settings()
     group = settings.get("whatsapp_group_id", "")
     if send and not group.endswith("@g.us"):
@@ -31,17 +32,21 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
             message_id TEXT, updated_at TEXT,
             PRIMARY KEY(store, product_id, channel))""")
         db.commit()
+        ensure_outbox(db)
         browser = LazyBrowser(visible)
         sources = build_sources(db, settings, browser)
         try:
-            discovery_report = discover(db, browser, settings, force=force_discovery, sources=sources)
+            discovery_report = [] if queued_only else discover(db, browser, settings, force=force_discovery, sources=sources)
             Path("reports").mkdir(exist_ok=True)
             Path("reports/sources.json").write_text(json.dumps(source_report(sources), ensure_ascii=False, indent=2), encoding="utf-8")
             if discovery_report:
                 Path("reports/discovery.json").write_text(json.dumps(discovery_report, ensure_ascii=False, indent=2), encoding="utf-8")
             if discover_only:
                 return discovery_report
-            manual = json.loads(Path("products.json").read_text(encoding="utf-8")) if Path("products.json").exists() else []
+            queued = pending(db) if queued_only else []
+            expected = {(entry['store'], entry['id']): offer for entry, offer in queued}
+            manual = ([entry for entry, _ in queued] if queued_only else
+                      json.loads(Path("products.json").read_text(encoding="utf-8")) if Path("products.json").exists() else [])
             unique = {}
             for entry in manual:
                 try:
@@ -49,7 +54,7 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                 except ValueError:
                     key = entry["id"]
                 unique[key] = entry
-            for entry in tracked_entries(db, int(settings.get("discovery", {}).get("max_products_per_run", 20))):
+            for entry in ([] if queued_only else tracked_entries(db, int(settings.get("discovery", {}).get("max_products_per_run", 20)))):
                 unique.setdefault(entry["id"], entry)
             entries = list(unique.values())
             for entry in entries:
@@ -58,6 +63,11 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                 row = {"store": entry["store"], "id": entry["id"], "url": entry["url"]}
                 try:
                     offer = sources[entry["store"]].collect(entry)
+                    original = expected.get((entry['store'], entry['id']))
+                    if original and not same_offer(offer, original):
+                        set_state(db, entry, 'stale')
+                        row.update(status='stale', reason='Candidato mudou desde a coleta; aguarda nova avaliação')
+                        continue
                     category = category_for(offer.title)
                     if category is None:
                         row.update(status="excluded", reason="Produto fora das sete categorias de hardware")
@@ -82,6 +92,10 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                         row["history_skipped"] = "Estoque, vendedor ou pagamento não confirmado"
                     if send and decision.status == "approved":
                         candidates.append((entry, offer, decision, row))
+                    elif not send and decision.status == "approved":
+                        enqueue(db, entry, offer, now)
+                    elif queued_only:
+                        set_state(db, entry, 'rejected')
                 except SourceError as exc:
                     row.update(status=exc.state, error=str(exc))
                 except Exception as exc:
@@ -90,6 +104,8 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                     db.execute("UPDATE tracked_products SET last_checked=? WHERE id=?",
                                (datetime.now(timezone.utc).isoformat(), entry["id"]))
                     db.commit()
+                    if row.get('status') == 'stale':
+                        report.append(row)
                 report.append(row)
                 print(f"{entry['store']} {entry['id']}: {row.get('error') or row.get('send_status') or row.get('decision', {}).get('status', 'pending_review')}", flush=True)
             candidates.sort(key=lambda item: (-item[2].discount_percent, item[1].price_cents))
@@ -105,14 +121,18 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                         current.official_store_id, current.shipped_by) != (offer.price_cents, offer.seller_id,
                         offer.payment_terms, offer.available, offer.official_store_id, offer.shipped_by):
                         row["send_status"] = "skipped: anúncio mudou durante a execução"
+                        set_state(db, entry, 'stale')
                         continue
                     if dispatch(db, offer, row["message"], config, group, checkpoint=checkpoint):
                         row["send_status"] = "sent"
+                        set_state(db, entry, 'sent')
                         sent += 1
                     else:
                         row["send_status"] = "blocked: repetição ou tentativa incerta"
+                        set_state(db, entry, 'blocked')
                 except Exception as exc:
                     row["send_error"] = str(exc)
+                    set_state(db, entry, 'uncertain')
                 print(f"Envio {entry['id']}: {row.get('send_status') or row.get('send_error')}", flush=True)
         finally:
             Path("reports").mkdir(exist_ok=True)

@@ -4,6 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const readline = require('node:readline');
 const { Client, LocalAuth, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
+const {logBridgeDiagnostic} = require('./bridge_diagnostics.cjs');
 const qrcode = require('qrcode-terminal');
 const root = path.resolve(__dirname, '..');
 const tokenFile = path.join(root, '.bridge_token');
@@ -200,7 +201,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 server.listen(8787, '127.0.0.1', () => console.log('Ponte local: http://127.0.0.1:8787'));
-client.initialize().catch(error => { console.error(error.message); process.exit(1); });
+client.initialize().catch(error => { logBridgeDiagnostic(error); process.exit(1); });
 let stopping = false;
 async function stop(code = 0, save = true) {
   if (stopping) return;

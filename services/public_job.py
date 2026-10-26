@@ -53,6 +53,18 @@ def safe_failure_code(log_path):
         text = Path(log_path).read_text(encoding="utf-8", errors="replace")[-200_000:]
     except OSError:
         return "child_failed"
+    import re
+    match = re.search(r"Bridge startup diagnostic: (whatsapp_[a-z0-9_]+)", text)
+    if match:
+        allowed = {
+            "whatsapp_session_key_invalid", "whatsapp_session_archive_invalid",
+            "whatsapp_browser_executable_missing", "whatsapp_browser_launch_failed",
+            "whatsapp_browser_protocol_error", "whatsapp_web_initialization_timeout",
+            "whatsapp_session_network_error", "whatsapp_initialization_failed",
+            *(f"whatsapp_session_http_{status}" for status in (401, 403, 404, 409, 429, 500, 502, 503, 504)),
+        }
+        if match.group(1) in allowed:
+            return match.group(1)
     known = (
         ("HTTP 409", "supabase_state_conflict"),
         ("HTTP 401", "supabase_auth_http_401"),

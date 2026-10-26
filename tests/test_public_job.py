@@ -37,6 +37,12 @@ class PublicJobTests(unittest.TestCase):
             self.assertEqual(safe_failure_code(log), "child_exception")
             log.write_text("SessÃ£o da nuvem precisa de autorizaÃ§Ã£o.", encoding="utf-8")
             self.assertEqual(safe_failure_code(log), "whatsapp_reauthorization_required")
+            log.write_text("Bridge startup diagnostic: whatsapp_browser_launch_failed\nprivate path C:/secret", encoding="utf-8")
+            self.assertEqual(safe_failure_code(log), "whatsapp_browser_launch_failed")
+            log.write_text("Bridge startup diagnostic: whatsapp_session_http_403 Bearer secret", encoding="utf-8")
+            self.assertEqual(safe_failure_code(log), "whatsapp_session_http_403")
+            log.write_text("Ponte encerrou. Bridge startup diagnostic: whatsapp_session_http_418 private", encoding="utf-8")
+            self.assertEqual(safe_failure_code(log), "whatsapp_bridge_stopped")
             self.assertEqual(safe_failure_code(Path(folder) / "missing.log"), "child_failed")
 
     def test_collect_never_requests_sending(self):

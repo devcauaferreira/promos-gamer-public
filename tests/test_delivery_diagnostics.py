@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 from config import Config
 from database.models import Offer, connect
 from publishers.whatsapp import WhatsAppDeliveryError, publish
-from whatsapp_cloud_job import run, send_media_test_once
+from whatsapp_cloud_job import reconcile_media_test, run, send_media_test_once
 
 
 MEDIA_TEST_MESSAGE = ('🧪 Teste técnico do Promos Gamer: validação de envio com foto pelo GitHub Actions. '
@@ -122,6 +122,55 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
             run(verify_only=True, send_media_test=True)
         popen.assert_not_called()
         configure.assert_not_called()
+
+    def seed_uncertain_legacy_media_test(self, config):
+        with closing(connect(config.database_path)) as db:
+            db.execute('''CREATE TABLE whatsapp_media_tests (
+                singleton INTEGER PRIMARY KEY, state TEXT NOT NULL,
+                run_id TEXT NOT NULL, message_id TEXT)''')
+            db.execute("INSERT INTO whatsapp_media_tests VALUES (1,'uncertain','1234',NULL)")
+            db.commit()
+
+    @patch('services.cloud.CloudState')
+    @patch('whatsapp_cloud_job.urlopen')
+    @patch('publishers.whatsapp.publish')
+    def test_reconciliation_confirms_legacy_media_test_without_sending(self, publish_mock, urlopen, state):
+        urlopen.return_value = io.BytesIO(json.dumps({'found': True, 'confirmed': True,
+                                                     'message_id': 'existing-photo-id'}).encode())
+        with isolated_workspace() as config:
+            self.seed_uncertain_legacy_media_test(config)
+            reconcile_media_test(config, 'private-loopback-token')
+            with closing(connect(config.database_path)) as db:
+                self.assertEqual(db.execute('SELECT state,message_id FROM whatsapp_media_tests').fetchone(),
+                                 ('confirmed', 'existing-photo-id'))
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM publications').fetchone()[0], 0)
+            state.return_value.checkpoint.assert_called_once()
+            publish_mock.assert_not_called()
+            urlopen.assert_called_once()
+            request = urlopen.call_args.args[0]
+            self.assertEqual(request.get_method(), 'GET')
+            self.assertEqual(request.full_url, 'http://127.0.0.1:8787/media-test-status')
+            self.assertEqual(request.get_header('Authorization'), 'Bearer private-loopback-token')
+
+    @patch('services.cloud.CloudState')
+    @patch('whatsapp_cloud_job.urlopen')
+    @patch('publishers.whatsapp.publish')
+    def test_reconciliation_without_message_preserves_uncertain_state_and_never_resends(self, publish_mock,
+                                                                                      urlopen, state):
+        urlopen.return_value = io.BytesIO(b'{"found": false, "confirmed": false, "message_id": null}')
+        with isolated_workspace() as config:
+            self.seed_uncertain_legacy_media_test(config)
+            reconcile_media_test(config, 'private-loopback-token')
+            with closing(connect(config.database_path)) as db:
+                self.assertEqual(db.execute('SELECT state,message_id FROM whatsapp_media_tests').fetchone(),
+                                 ('uncertain', None))
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM publications').fetchone()[0], 0)
+            state.return_value.checkpoint.assert_not_called()
+            publish_mock.assert_not_called()
+            urlopen.assert_called_once()
+            request = urlopen.call_args.args[0]
+            self.assertEqual(request.get_method(), 'GET')
+            self.assertEqual(request.full_url, 'http://127.0.0.1:8787/media-test-status')
 
 
 if __name__ == '__main__':

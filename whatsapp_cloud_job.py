@@ -152,7 +152,9 @@ def send_media_test_once(config):
     with closing(connect(config.database_path)) as db:
         db.execute('''CREATE TABLE IF NOT EXISTS whatsapp_media_tests (
             singleton INTEGER PRIMARY KEY CHECK(singleton=1), state TEXT NOT NULL,
-            run_id TEXT NOT NULL, message_id TEXT)''')
+            run_id TEXT NOT NULL, message_id TEXT, error_code TEXT)''')
+        if 'error_code' not in {column[1] for column in db.execute('PRAGMA table_info(whatsapp_media_tests)')}:
+            db.execute('ALTER TABLE whatsapp_media_tests ADD COLUMN error_code TEXT')
         if db.execute('SELECT 1 FROM whatsapp_media_tests').fetchone():
             print('Teste com foto já reservado; nenhuma repetição automática.', flush=True)
             return
@@ -172,18 +174,22 @@ def send_media_test_once(config):
             browser.close()
         if not image_url:
             raise ValueError('Nenhuma foto de produto validado disponível para o teste.')
-        db.execute("INSERT INTO whatsapp_media_tests VALUES (1,'sending',?,NULL)", (run_id,))
+        db.execute("INSERT INTO whatsapp_media_tests(singleton,state,run_id,message_id) VALUES (1,'sending',?,NULL)", (run_id,))
         db.commit()
         state.checkpoint(db)
         try:
             message_id = publish('🧪 Teste técnico do Promos Gamer: validação de envio com foto pelo GitHub Actions. Não é uma promoção.',
                                  settings['whatsapp_group_id'], image_url=image_url, require_image=True)
-        except Exception:
-            db.execute("UPDATE whatsapp_media_tests SET state='uncertain'")
+        except Exception as error:
+            code = getattr(error, 'code', '')
+            if code not in ('whatsapp_send_failed', 'whatsapp_confirmation_missing',
+                             'whatsapp_transport_unknown', 'whatsapp_bridge_http_error'):
+                code = 'media_test_failed'
+            db.execute("UPDATE whatsapp_media_tests SET state='uncertain',error_code=?", (code,))
             db.commit()
             state.checkpoint(db)
             raise
-        db.execute("UPDATE whatsapp_media_tests SET state='confirmed',message_id=?", (message_id,))
+        db.execute("UPDATE whatsapp_media_tests SET state='confirmed',message_id=?,error_code=NULL", (message_id,))
         from datetime import datetime, timezone
         db.execute('''CREATE TABLE IF NOT EXISTS whatsapp_health (
             singleton INTEGER PRIMARY KEY CHECK(singleton=1), checked_at TEXT NOT NULL,
@@ -193,6 +199,35 @@ def send_media_test_once(config):
         db.commit()
         state.checkpoint(db)
         print('Teste único com foto confirmado pelo servidor do WhatsApp.', flush=True)
+
+
+def reconcile_media_test(config, token):
+    """Só consulta a mensagem exata do teste; nunca chama /send."""
+    from contextlib import closing
+    from database.models import connect
+    from services.cloud import CloudState
+    state = CloudState(config.database_path)
+    state.restore()
+    with closing(connect(config.database_path)) as db:
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if 'whatsapp_media_tests' not in tables:
+            return
+        row = db.execute('SELECT state FROM whatsapp_media_tests WHERE singleton=1').fetchone()
+        if not row or row[0] == 'confirmed':
+            return
+        request = Request('http://127.0.0.1:8787/media-test-status',
+                          headers={'Authorization': 'Bearer ' + token})
+        with urlopen(request, timeout=30) as response:
+            result = json.load(response)
+        if result.get('confirmed') is True and isinstance(result.get('message_id'), str) and result['message_id']:
+            db.execute("UPDATE whatsapp_media_tests SET state='confirmed',message_id=? WHERE singleton=1",
+                       (result['message_id'],))
+            db.commit()
+            state.checkpoint(db)
+            print('Teste com foto encontrado com ACK; nenhuma nova mensagem enviada.', flush=True)
+        else:
+            print('Reconciliação do teste com foto: encontrado=' + str(result.get('found') is True)
+                  + '; confirmado=False; nenhuma nova mensagem enviada.', flush=True)
 
 
 def run(connect_only=False, limit=20, send_test=False, send_preview=False, verify_only=False, send_media_test=False):
@@ -252,6 +287,7 @@ def run(connect_only=False, limit=20, send_test=False, send_preview=False, verif
                     db.commit()
                     state.checkpoint(db)
                 print('Conexão, grupo e sessão persistida verificados. Nenhuma mensagem enviada.', flush=True)
+                reconcile_media_test(config, env['WHATSAPP_BRIDGE_TOKEN'])
                 return
             if send_validation:
                 # O publicador deve usar a mesma ponte privada criada neste job.

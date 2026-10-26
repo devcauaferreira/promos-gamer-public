@@ -24,6 +24,14 @@ quantidade de produtos, descoberta, fontes acessíveis e duração real dos jobs
 - Verificação de conexão sem QR/mensagens e teste único com foto são modos separados.
   Testes de envio exigem autorização explícita e não simulam promoções aprovadas.
 
+A biblioteca fixada `whatsapp-web.js 1.34.7` também contém a colisão de identidade
+em mensagens com mídia corrigida no [PR oficial 201923](https://github.com/wwebjs/whatsapp-web.js/pull/201923).
+O postinstall aplica esse backport de forma estrita e idempotente, preservando os
+demais campos da mídia; versão ou bloco inesperado interrompe a preparação. A
+reconciliação de um teste incerto consulta apenas o texto exato do teste no grupo
+configurado. Encontrar uma mensagem com ACK pode confirmar a entrega sem reenvio;
+não encontrá-la não autoriza uma nova tentativa automaticamente.
+
 ## O que é necessário para uma publicação
 
 Uma oferta deve estar no cadastro ou ser descoberta numa fonte acessível. Precisa

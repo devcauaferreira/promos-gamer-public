@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "whatsapp": "node publishers/whatsapp_bridge.cjs"
+    "whatsapp": "node publishers/whatsapp_bridge.cjs",
+    "postinstall": "node scripts/patch_wwebjs_media.cjs"
   },
   "dependencies": {
     "qrcode": "1.5.4",

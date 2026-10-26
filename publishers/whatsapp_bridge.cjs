@@ -147,13 +147,17 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/groups') {
       return respond(res, 200, await listGroups());
     }
-    if (req.method === 'GET' && req.url === '/test-status') {
+    if (req.method === 'GET' && ['/test-status','/media-test-status'].includes(req.url)) {
+      const mediaTest = req.url === '/media-test-status';
       const settings = JSON.parse(fs.readFileSync(path.join(root,'settings.json'),'utf8'));
       if (!(await listGroups()).some(chat=>chat.id===settings.whatsapp_group_id))
         return respond(res,400,{error:'Grupo configurado não encontrado'});
       const chat = await client.getChatById(settings.whatsapp_group_id);
       const messages = await chat.fetchMessages({limit:50,fromMe:true});
-      const matches = messages.filter(message=>message.fromMe && message.body === 'Teste técnico do Promos Gamer pelo GitHub Actions. Não é uma oferta.');
+      const expected = mediaTest
+        ? '🧪 Teste técnico do Promos Gamer: validação de envio com foto pelo GitHub Actions. Não é uma promoção.'
+        : 'Teste técnico do Promos Gamer pelo GitHub Actions. Não é uma oferta.';
+      const matches = messages.filter(message=>message.fromMe && message.body === expected && (!mediaTest || message.hasMedia));
       const confirmed = matches.find(message=>message.ack>=1);
       return respond(res,200,{found:matches.length>0,confirmed:!!confirmed,
         acks:matches.map(message=>Number.isInteger(message.ack)?message.ack:null),

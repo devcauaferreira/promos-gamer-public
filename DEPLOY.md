@@ -1,5 +1,11 @@
 # GitHub Actions + callback HTTPS do Mercado Livre
 
+**Recomendação de hospedagem revista:** consulte [HOSPEDAGEM.md](HOSPEDAGEM.md).
+Para produção, recomendamos um worker contínuo em VPS/Docker ou plataforma
+gerenciada. O caminho Actions abaixo registra a implementação existente e seus
+testes; o disparador Supabase→Actions permanece inativo e não é a recomendação
+atual para hospedar o bot.
+
 O código pode ficar em um repositório público. Credenciais, identificadores da
 instalação, grupo WhatsApp e cadastro privado ficam nos Secrets do Actions;
 banco, tokens OAuth e sessão cifrada permanecem no Supabase privado.

@@ -2,6 +2,9 @@
 
 Uma comparação com o projeto [price-alert-bot](REVISAO_PRICE_ALERT_BOT.md)
 registra as práticas aproveitadas e os limites do catálogo do Mercado Livre.
+A [pesquisa de hospedagem](HOSPEDAGEM.md) recomenda migrar a execução de produção
+para um worker contínuo, usando Actions para testes e implantação. Essa migração
+ainda não foi realizada.
 
 A aplicação continua voltada a compartilhar promoções sem afiliação, sem frete
 e sem acesso de escrita às lojas. Histórico, vendedores aprovados e publicação

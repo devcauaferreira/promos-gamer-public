@@ -188,7 +188,7 @@ const server = http.createServer(async (req, res) => {
       deliveryPhase = 'send';
       const sent = image
         ? await client.sendMessage(group_id, new MessageMedia(image.mimetype, image.data),
-            {caption:message,sendSeen:false,waitUntilMsgSent:true})
+            {caption:message,sendMediaAsHd:true,sendSeen:false,waitUntilMsgSent:true})
         : await client.sendMessage(group_id, message, {sendSeen:false,waitUntilMsgSent:true});
       deliveryPhase = 'confirmation';
       const message_id = await require('./message_confirmation.cjs').confirmedMessageId(sent);

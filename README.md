@@ -81,6 +81,34 @@ o número do grupo no terminal; o ID será salvo em `settings.json`.
 Nenhum envio acontece apenas ao conectar. A conta precisa poder enviar mensagens
 no grupo escolhido. O programa não cria grupos nem adiciona pessoas.
 
+## Arte das imagens no WhatsApp
+
+As fotos aprovadas têm o fundo removido localmente por segmentação de imagem e são
+compostas sobre um cenário gamer neon de 1440×1440. A paleta de fundo, brilho,
+reflexos e acentos é extraída automaticamente das cores do produto; a etiqueta é
+configurável. O produto não é redesenhado nem enviado a um serviço externo de edição.
+A arte é enviada inline em HD. Se a remoção ou composição falhar, a mensagem não é
+enviada com uma imagem sem tratamento; a falha fica registrada para diagnóstico. O
+modelo U2Net é baixado uma vez e mantido no cache do workflow.
+Para personalizar, inclua este objeto em `PROMOS_SETTINGS_JSON` nos Secrets do GitHub:
+
+```json
+{
+  "image_card": {
+    "background_color": "#111827",
+    "accent_color": "#22C55E",
+    "glow_color": "#00C8FF",
+    "auto_colors": true,
+    "badge_text": "PROMOS GAMER"
+  }
+}
+```
+
+As cores usam o formato hexadecimal `#RRGGBB`; a etiqueta aceita de 1 a 30 caracteres.
+Com `auto_colors: true` (padrão), as três cores são harmonizadas a partir do produto.
+Use `false` para fixar as cores configuradas. Se `image_card` for omitido, a etiqueta
+e o estilo usam o padrão Promos Gamer.
+
 ## Cadastrar outros produtos
 
 ```powershell

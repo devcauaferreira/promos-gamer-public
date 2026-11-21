@@ -1,12 +1,16 @@
 import unittest
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from unittest.mock import patch
+
+from PIL import Image, ImageDraw
 
 from collectors.web_product import parse_product
 from database.models import Offer, connect
 from config import Config
-from publishers.whatsapp import product_image
+from publishers.image_card import format_image, validate_settings, _product_palette
+from publishers.whatsapp import product_image, publish
 from services.discount_filter import Decision, evaluate
 from services.message_builder import build_message
 from services.price_history import record_price
@@ -21,12 +25,12 @@ class OfferMediaTests(unittest.TestCase):
         message = build_message(offer, decision)
         self.assertEqual(decision.history_days, 30)
         self.assertIn('Média dos últimos 30 dias: R$ 799,00', message)
-        self.assertIn('💚 *R$ 529,62*', message)
-        self.assertIn('33,7% abaixo da média', message)
-        self.assertIn('Base: 12 dia(s) observado(s)', message)
+        self.assertIn('🔥 *Por R$ 529,62*', message)
+        self.assertIn('33,7% abaixo da média observada', message)
+        self.assertIn('Observado em 12 dias de coleta', message)
         self.assertIn('🏬 Kabum • Vendedor: KaBuM!', message)
         self.assertIn('💳 À vista no PIX', message)
-        self.assertIn('🛒 *COMPRAR AGORA*', message)
+        self.assertIn('🛒 *COMPRE AQUI*', message)
         self.assertIn('— *Promos Gamer*', message)
         self.assertNotIn('De: ', message)
 
@@ -103,6 +107,76 @@ class OfferMediaTests(unittest.TestCase):
         self.assertIsNone(product_image('http://images.kabum.com.br/produtos/fotos/1/a.jpg'))
         opener.assert_not_called()
 
+    @patch('publishers.whatsapp.runner_bridge', return_value=True)
+    @patch('publishers.whatsapp.bridge_token', return_value='x' * 32)
+    @patch('publishers.whatsapp.product_image', return_value=None)
+    @patch('urllib.request.build_opener')
+    def test_failed_background_replacement_does_not_send_unprocessed_photo(
+            self, opener, photo, token, runner):
+        with self.assertRaisesRegex(ValueError, 'imagem gamer'):
+            publish('Oferta', 'test@g.us',
+                    image_url='https://images.kabum.com.br/produtos/fotos/320799/photo.jpg')
+        opener.assert_not_called()
+
+    @patch('publishers.image_card.remove_background')
+    def test_product_photo_background_is_replaced_with_gamer_scene(self, remove_background):
+        source = BytesIO()
+        original = Image.new('RGB', (100, 50), '#0000ff')
+        ImageDraw.Draw(original).rectangle((25, 10, 75, 40), fill='#ff0000')
+        original.save(source, format='PNG')
+
+        def segment(image):
+            cutout = image.copy()
+            mask = Image.new('L', image.size, 0)
+            ImageDraw.Draw(mask).rectangle((25, 10, 75, 40), fill=255)
+            cutout.putalpha(mask)
+            return cutout
+
+        remove_background.side_effect = segment
+
+        result = Image.open(BytesIO(format_image(
+            source.getvalue(),
+            {'background_color': '#123456', 'accent_color': '#00aa88', 'badge_text': 'MEU BOT'},
+        )))
+
+        self.assertEqual(result.format, 'JPEG')
+        self.assertEqual(result.size, (1440, 1440))
+        replaced_background = result.getpixel((200, 500))
+        self.assertNotEqual(replaced_background, (0, 0, 255))
+        red = result.getpixel((720, 632))
+        self.assertGreater(red[0], 240)
+        self.assertLess(red[1], 15)
+        self.assertLess(red[2], 15)
+        remove_background.assert_called_once()
+
+    def test_image_card_settings_reject_invalid_customization(self):
+        with self.assertRaisesRegex(ValueError, 'background_color'):
+            validate_settings({'background_color': 'blue'})
+        with self.assertRaisesRegex(ValueError, 'badge_text'):
+            validate_settings({'badge_text': 'x' * 31})
+
+    def test_auto_palette_follows_the_product_main_color(self):
+        red_product = Image.new('RGBA', (80, 80), (240, 24, 16, 255))
+        green_product = Image.new('RGBA', (80, 80), (20, 220, 40, 255))
+        settings = validate_settings()
+
+        red_palette = _product_palette(red_product, settings)
+        green_palette = _product_palette(green_product, settings)
+
+        self.assertNotEqual(red_palette['glow_color'], green_palette['glow_color'])
+        self.assertNotEqual(red_palette['accent_color'], green_palette['accent_color'])
+        self.assertNotEqual(red_palette['background_color'], green_palette['background_color'])
+
+    def test_auto_palette_can_be_disabled_for_fixed_brand_colors(self):
+        palette = _product_palette(
+            Image.new('RGBA', (20, 20), (240, 24, 16, 255)),
+            validate_settings({'auto_colors': False}),
+        )
+
+        self.assertEqual(palette['background_color'], '#111827')
+        self.assertEqual(palette['accent_color'], '#22C55E')
+        self.assertEqual(palette['glow_color'], '#00C8FF')
+
     def test_kabum_photo_must_match_product_id(self):
         html = '''<meta property="og:image" content="https://images.kabum.com.br/produtos/fotos/999/photo.jpg">
         <script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"product":
@@ -112,6 +186,18 @@ class OfferMediaTests(unittest.TestCase):
         self.assertEqual(parse_product(html, entry).image_url, '')
         self.assertEqual(parse_product(html.replace('/999/', '/320799/'), entry).image_url,
                          'https://images.kabum.com.br/produtos/fotos/320799/photo.jpg')
+
+    def test_kabum_photo_prefers_preloaded_full_resolution_image(self):
+        image_prefix = 'https://images.kabum.com.br/produtos/fotos/320799/'
+        html = (
+            '<link rel="preload" as="image" href="' + image_prefix + 'product_gg.jpg">'
+            '<meta property="og:image" content="' + image_prefix + 'product_m.jpg">'
+            '<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"product":'
+            '{"id":320799,"title":"Processador Ryzen 5 5500","prices":{"price":500},'
+            '"sellerName":"KaBuM!","available":true}}}}</script>'
+        )
+        entry = {'store':'kabum','id':'cpu','url':'https://www.kabum.com.br/produto/320799/cpu'}
+        self.assertEqual(parse_product(html, entry).image_url, f'{image_prefix}product_gg.jpg')
 
 
 if __name__ == '__main__':

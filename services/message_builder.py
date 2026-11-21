@@ -6,10 +6,10 @@ def build_message(offer, decision):
     from services.niche import CATEGORIES, category_for
     category = category_for(offer.title)
     heading = f"PROMOS GAMER • {CATEGORIES[category].upper()}" if category else "PROMOS GAMER • OFERTA GAMER"
-    lines = [f"🟢 *{heading}*", f"*{offer.title}*", "━━━━━━━━━━━━━━━━"]
-    lines.append(f"💚 *{money(offer.price_cents)}*")
+    lines = [f"🎮 *{heading}*", f"*{offer.title}*", ""]
+    lines.append(f"🔥 *Por {money(offer.price_cents)}*")
     if decision.average_cents is not None and decision.discount_percent is not None:
-        lines.append(f"⬇️ {decision.discount_percent:.1f}% abaixo da média".replace(".", ","))
+        lines.append(f"📉 {decision.discount_percent:.1f}% abaixo da média observada".replace(".", ","))
     unconfirmed_ml_catalog = (offer.store == "mercadolivre"
                               and offer.source == "official_catalog"
                               and offer.availability_evidence == "unknown")
@@ -25,8 +25,9 @@ def build_message(offer, decision):
         lines.extend(["", "📊 *HISTÓRICO DE PREÇOS*",
                       f"Média dos últimos {decision.history_days} dias: {money(decision.average_cents)}"])
         if decision.history_samples:
-            lines.append(f"Base: {decision.history_samples} dia(s) observado(s)")
-    lines.append("━━━━━━━━━━━━━━━━")
+            unit = "dia" if decision.history_samples == 1 else "dias"
+            lines.append(f"Observado em {decision.history_samples} {unit} de coleta")
+    lines.append("")
 
     seller_details = []
     if offer.store.strip():
@@ -40,7 +41,7 @@ def build_message(offer, decision):
     if offer.payment_terms.strip() and not unconfirmed_stock:
         lines.append(f"💳 {offer.payment_terms.strip()}")
     if offer.affiliate_url.strip():
-        lines.extend(["", "🛒 *COMPRAR AGORA*", offer.affiliate_url.strip()])
+        lines.extend(["", "🛒 *COMPRE AQUI*", offer.affiliate_url.strip()])
     lines.extend(["", "Frete não incluído. Confira preço e disponibilidade na loja.",
                   "— *Promos Gamer*"])
     return "\n".join(lines)

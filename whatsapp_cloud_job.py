@@ -178,8 +178,12 @@ def send_media_test_once(config):
         db.commit()
         state.checkpoint(db)
         try:
+            publish_options = {}
+            if settings.get('image_card') is not None:
+                publish_options['image_card'] = settings['image_card']
             message_id = publish('🧪 Teste técnico do Promos Gamer: validação de envio com foto pelo GitHub Actions. Não é uma promoção.',
-                                 settings['whatsapp_group_id'], image_url=image_url, require_image=True)
+                                 settings['whatsapp_group_id'], image_url=image_url, require_image=True,
+                                 **publish_options)
         except Exception as error:
             code = getattr(error, 'code', '')
             if code not in ('whatsapp_send_failed', 'whatsapp_confirmation_missing',

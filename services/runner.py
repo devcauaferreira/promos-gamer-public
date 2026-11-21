@@ -143,7 +143,8 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                         "SELECT state,message_id,updated_at FROM dispatches WHERE store=? AND product_id=? AND channel=?",
                         (offer.store, offer.product_id, "whatsapp:" + group)).fetchone()
                     dispatch_attempted = True
-                    if dispatch(db, offer, row["message"], config, group, checkpoint=checkpoint):
+                    if dispatch(db, offer, row["message"], config, group,
+                                checkpoint=checkpoint, image_card=settings.get("image_card")):
                         row["send_status"] = "sent"
                         set_state(db, entry, 'sent')
                         sent += 1
@@ -178,7 +179,7 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
     return report
 
 
-def dispatch(db, offer, message, config, group, checkpoint=None):
+def dispatch(db, offer, message, config, group, checkpoint=None, image_card=None):
     now = datetime.now(timezone.utc)
     channel = "whatsapp:" + group
     db.execute("BEGIN IMMEDIATE")
@@ -209,7 +210,10 @@ def dispatch(db, offer, message, config, group, checkpoint=None):
                 pass
         raise
     try:
-        message_id = publish(message, group, image_url=offer.image_url)
+        if image_card is None:
+            message_id = publish(message, group, image_url=offer.image_url)
+        else:
+            message_id = publish(message, group, image_url=offer.image_url, image_card=image_card)
     except Exception:
         db.execute("UPDATE dispatches SET state='uncertain' WHERE store=? AND product_id=? AND channel=?",
                    (offer.store, offer.product_id, channel))

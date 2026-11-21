@@ -2,11 +2,13 @@ import json
 from pathlib import Path
 
 from config import Config
+from publishers.image_card import validate_settings
 
 
 def load_settings(path="settings.json"):
     file = Path(path)
     data = json.loads(file.read_text(encoding="utf-8")) if file.exists() else {}
+    data["image_card"] = validate_settings(data.get("image_card"))
     config = Config(
         database_path=Path(data.get("database_path", "database/promos.sqlite3")),
         minimum_discount_percent=float(data.get("minimum_discount_percent", 25)),

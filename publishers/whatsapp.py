@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.parse import urlparse
 from services.secrets import secret
+from publishers.image_card import format_image, validate_settings
 
 
 def bridge_token():
@@ -37,8 +38,8 @@ def validate_publish_bridge():
     return "http://127.0.0.1:8787"
 
 
-def product_image(image_url):
-    """Obtém apenas fotos oficiais da KaBuM, com limite de tamanho e sem redirecionar."""
+def product_image(image_url, image_card=None):
+    """Obtém uma foto oficial da KaBuM, remove o fundo e cria uma arte gamer."""
     parsed = urlparse(image_url)
     if (parsed.scheme != "https" or parsed.hostname != "images.kabum.com.br"
             or not parsed.path.startswith("/produtos/fotos/") or parsed.query or parsed.fragment
@@ -55,7 +56,8 @@ def product_image(image_url):
             data = response.read(3_000_001)
             if not data or len(data) > 3_000_000:
                 return None
-            return {"mimetype": mime, "data": base64.b64encode(data).decode("ascii")}
+            formatted = format_image(data, image_card)
+            return {"mimetype": "image/jpeg", "data": base64.b64encode(formatted).decode("ascii")}
     except (OSError, ValueError):
         return None
 
@@ -66,7 +68,7 @@ class WhatsAppDeliveryError(RuntimeError):
         super().__init__(code)
 
 
-def publish(message, group_id, image_url="", require_image=False):
+def publish(message, group_id, image_url="", require_image=False, image_card=None):
     token = bridge_token()
     if len(token) < 24:
         raise ValueError("Defina WHATSAPP_BRIDGE_TOKEN com pelo menos 24 caracteres")
@@ -77,9 +79,14 @@ def publish(message, group_id, image_url="", require_image=False):
         raise ValueError("Configure uma ponte externa HTTPS antes de publicar pelo GitHub Actions")
     payload = {"group_id": group_id, "message": message}
     if image_url:
-        photo = product_image(image_url)
+        photo = (product_image(image_url) if image_card is None
+                 else product_image(image_url, validate_settings(image_card)))
         if photo:
             payload["image"] = photo
+        else:
+            if require_image:
+                raise ValueError("Foto indisponível antes do envio; nenhuma mensagem enviada.")
+            raise ValueError("Não foi possível gerar a imagem gamer; mensagem não enviada.")
     if require_image and 'image' not in payload:
         raise ValueError('Foto indisponível antes do envio; nenhuma mensagem enviada.')
     request = Request(base_url + "/send",

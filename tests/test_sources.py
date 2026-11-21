@@ -140,6 +140,42 @@ class AdapterTests(unittest.TestCase):
                 source.offers()
             self.assertEqual(error.exception.state, "stale_feed")
 
+    def test_amazon_feed_accepts_only_explicit_unknown_stock_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "amazon.json"
+            row = {"url": "https://www.amazon.com.br/dp/B09VCJ171S",
+                   "title": "Processador AMD Ryzen 5 5500", "seller_id": "Amazon.com.br",
+                   "shipped_by": "Amazon.com.br", "price_cents": 38000, "currency": "BRL",
+                   "available": False, "availability_evidence": "unknown", "payment_terms": "PIX",
+                   "observed_at": datetime.now(timezone.utc).isoformat()}
+            def write():
+                path.write_text(json.dumps({"schema_version": 1, "store": "amazon", "offers": [row]}),
+                                encoding="utf-8")
+            source = AuthorizedFeed("amazon", {
+                "feed_path": str(path), "authorization_reference": "Fornecedor autorizado"})
+            write()
+            offer = next(iter(source.offers().values()))
+            self.assertFalse(offer.available)
+            self.assertEqual(offer.availability_evidence, "unknown")
+
+            del row["availability_evidence"]
+            write()
+            self.assertEqual(next(iter(source.offers().values())).availability_evidence, "")
+
+            row["availability_evidence"] = "unknown"
+            row["available"] = True
+            write()
+            with self.assertRaises(SourceError):
+                source.offers()
+
+            row["available"] = False
+            row["availability_evidence"] = "unknown"
+            write()
+            other_store = AuthorizedFeed("pichau", {
+                "feed_path": str(path), "authorization_reference": "Fornecedor autorizado"})
+            with self.assertRaises(SourceError):
+                other_store.offers()
+
 
 if __name__ == "__main__":
     unittest.main()

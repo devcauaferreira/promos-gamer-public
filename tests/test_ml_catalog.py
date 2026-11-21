@@ -1,5 +1,6 @@
 import unittest
 from contextlib import closing
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 
@@ -29,7 +30,7 @@ class CatalogTests(unittest.TestCase):
         return {"id": "ml-MLB123", "catalog_id": "MLB19444510",
                 "url": "https://www.mercadolivre.com.br/p/MLB19444510?pdp_filters=item_id%3AMLB123"}
 
-    def test_prices_are_specific_to_seller_and_unknown_stock_blocks_publication(self, secret):
+    def test_unknown_stock_is_publishable_only_for_official_catalog(self, secret):
         with closing(connect(":memory:")) as db:
             source, client = self.source(db)
             client.get.side_effect = [self.product(), {"results": [self.item()]}]
@@ -45,8 +46,12 @@ class CatalogTests(unittest.TestCase):
                 record_price(db, offer.store, offer.product_id, 80000, now - timedelta(days=days))
             config = Config(trusted_sellers=frozenset({("mercadolivre", "42")}))
             decision = evaluate(db, offer, config, now)
-            self.assertEqual(decision.status, "pending_review")
-            self.assertEqual(decision.reasons, ("Disponibilidade não confirmada",))
+            self.assertEqual(decision.status, "approved")
+            self.assertEqual(decision.reasons, ())
+            unverified_api_offer = replace(offer, source="official_api")
+            api_decision = evaluate(db, unverified_api_offer, config, now)
+            self.assertEqual(api_decision.status, "pending_review")
+            self.assertIn("Disponibilidade não confirmada", api_decision.reasons)
             self.assertTrue(all("/products/" in call.args[0] for call in client.get.call_args_list))
 
     def test_manual_link_has_no_silent_item_endpoint_fallback(self, secret):

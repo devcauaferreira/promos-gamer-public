@@ -27,7 +27,13 @@ def evaluate(db, offer, config, now, channel="whatsapp"):
     seller_reason = seller_rejection(offer, config.trusted_sellers)
     if seller_reason:
         reasons.append(seller_reason)
-    if not offer.available:
+    unconfirmed_ml_catalog = (offer.store == "mercadolivre"
+                              and offer.source == "official_catalog"
+                              and offer.availability_evidence == "unknown")
+    unconfirmed_amazon_feed = (offer.store == "amazon"
+                               and offer.source == "authorized_feed"
+                               and offer.availability_evidence == "unknown")
+    if not offer.available and not (unconfirmed_ml_catalog or unconfirmed_amazon_feed):
         reasons.append("Disponibilidade não confirmada" if offer.availability_evidence in ('unknown', 'review_bundle_only')
                        else "Oferta indisponível")
     if offer.price_cents <= 0 or (config.include_shipping and (offer.shipping_cents is None or offer.shipping_cents < 0)):

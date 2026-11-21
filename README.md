@@ -38,8 +38,10 @@ web legada para processador, placa-mãe, memória RAM, SSD, fonte, placa de víd
 kit upgrade. O Mercado Livre usa o catálogo oficial com OAuth conectado, mas
 continua sem confirmação de disponibilidade dos anúncios consultados. O modo Amazon
 `public_catalog_review` registra somente cotações de cards vinculados ao ASIN exato,
-sem aprovar publicações. Magalu e Pichau aguardam feeds autorizados. Não há tentativa de voltar aos sites
-bloqueados quando uma API ou feed está sem acesso.
+sem aprovar publicações. A Amazon pode também usar feed autorizado; nele, ofertas
+com disponibilidade explicitamente desconhecida só são consideradas com aviso para
+confirmar estoque e pagamento. Magalu e Pichau aguardam feeds autorizados. Não há
+tentativa de voltar aos sites bloqueados quando uma API ou feed está sem acesso.
 
 A integração nativa com a Creators API da Amazon ainda não foi implementada,
 pois depende de elegibilidade no programa de associados, que este projeto não tem.

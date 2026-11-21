@@ -65,7 +65,7 @@ class PriceObservations(unittest.TestCase):
             with self.assertRaises(ValueError):
                 record_observation(db, self.offer(), now.replace(tzinfo=None))
 
-    def test_runner_records_unknown_catalog_stock_without_price_history_or_send(self):
+    def test_runner_tracks_and_sends_unknown_catalog_stock_with_clear_warning(self):
         previous = Path.cwd()
         with tempfile.TemporaryDirectory() as directory:
             os.chdir(directory)
@@ -89,22 +89,29 @@ class PriceObservations(unittest.TestCase):
                      patch("services.runner.build_sources", return_value={"mercadolivre": source}), \
                      patch("services.runner.source_report", return_value=[]), \
                      patch("services.runner.publish") as publish:
+                    publish.return_value = "test-message-id"
                     initial = cycle(send=True)[0]
                     self.assertFalse(initial["offer"]["available"])
                     self.assertEqual(initial["offer"]["availability_evidence"], "unknown")
+                    self.assertEqual(initial["decision"]["status"], "pending_review")
                     product_id = initial["offer"]["product_id"]
                     self.assertTrue(product_id.startswith("ml-MLB123:"))
                     with closing(connect(config.database_path)) as db:
                         self.assertEqual(db.execute("SELECT product_id, available, availability_evidence FROM price_observations").fetchone(),
                                          (product_id, 0, "unknown"))
-                        self.assertEqual(db.execute("SELECT COUNT(*) FROM prices").fetchone()[0], 0)
+                        self.assertEqual(db.execute("SELECT COUNT(*) FROM prices").fetchone()[0], 1)
                         record_price(db, "mercadolivre", product_id, 80000, datetime.now(timezone.utc) - timedelta(days=1))
                     repeated = cycle(send=True)[0]
-                    self.assertEqual(repeated["decision"]["reasons"], ("Disponibilidade não confirmada",))
-                    self.assertEqual(repeated["decision"]["status"], "pending_review")
+                    self.assertEqual(repeated["decision"]["status"], "approved")
+                    self.assertEqual(repeated["send_status"], "sent")
+                    self.assertIn("⚠️ *ESTOQUE NÃO CONFIRMADO*", repeated["message"])
+                    self.assertIn("Confirme a disponibilidade e as condições de pagamento no Mercado Livre",
+                                  repeated["message"])
+                    self.assertNotIn("💳 Preço do anúncio no catálogo", repeated["message"])
                     with closing(connect(config.database_path)) as db:
-                        self.assertEqual(db.execute("SELECT COUNT(*) FROM prices").fetchone()[0], 1)
-                    publish.assert_not_called()
+                        self.assertEqual(db.execute("SELECT COUNT(*) FROM prices").fetchone()[0], 2)
+                    publish.assert_called_once()
+                    self.assertIn("⚠️ *ESTOQUE NÃO CONFIRMADO*", publish.call_args.args[0])
             finally:
                 os.chdir(previous)
 

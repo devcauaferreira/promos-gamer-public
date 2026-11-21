@@ -10,6 +10,17 @@ def build_message(offer, decision):
     lines.append(f"💚 *{money(offer.price_cents)}*")
     if decision.average_cents is not None and decision.discount_percent is not None:
         lines.append(f"⬇️ {decision.discount_percent:.1f}% abaixo da média".replace(".", ","))
+    unconfirmed_ml_catalog = (offer.store == "mercadolivre"
+                              and offer.source == "official_catalog"
+                              and offer.availability_evidence == "unknown")
+    unconfirmed_amazon_feed = (offer.store == "amazon"
+                               and offer.source == "authorized_feed"
+                               and offer.availability_evidence == "unknown")
+    unconfirmed_stock = unconfirmed_ml_catalog or unconfirmed_amazon_feed
+    if unconfirmed_stock:
+        store_location = "no Mercado Livre" if unconfirmed_ml_catalog else "na Amazon"
+        lines.extend(["", "⚠️ *ESTOQUE NÃO CONFIRMADO*",
+                      f"Confirme a disponibilidade e as condições de pagamento {store_location} antes de comprar."])
     if decision.average_cents is not None:
         lines.extend(["", "📊 *HISTÓRICO DE PREÇOS*",
                       f"Média dos últimos {decision.history_days} dias: {money(decision.average_cents)}"])
@@ -26,7 +37,7 @@ def build_message(offer, decision):
         lines.append("🏬 " + " • ".join(seller_details))
     if offer.shipped_by.strip():
         lines.append(f"🚚 Entregue por: {offer.shipped_by.strip()}")
-    if offer.payment_terms.strip():
+    if offer.payment_terms.strip() and not unconfirmed_stock:
         lines.append(f"💳 {offer.payment_terms.strip()}")
     if offer.affiliate_url.strip():
         lines.extend(["", "🛒 *COMPRAR AGORA*", offer.affiliate_url.strip()])

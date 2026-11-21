@@ -2,13 +2,17 @@ import io
 import json
 import unittest
 from contextlib import closing
+from datetime import datetime, timedelta, timezone
 from email.message import Message
 from unittest.mock import Mock
 from urllib.error import HTTPError
 
+from config import Config
 from collectors.amazon_public import AmazonPublicReview, parse_amazon_review
 from collectors.base import SourceError
 from database.models import connect
+from services.discount_filter import evaluate
+from services.price_history import record_price
 
 
 class AmazonReviewTests(unittest.TestCase):
@@ -33,6 +37,15 @@ class AmazonReviewTests(unittest.TestCase):
         self.assertEqual(offer.price_basis, 'amazon_bundle_unit_quote')
         self.assertFalse(offer.available)
         self.assertEqual(offer.availability_evidence, 'review_bundle_only')
+
+    def test_public_review_quote_remains_ineligible_for_unknown_stock_exception(self):
+        offer = parse_amazon_review(self.html(), self.entry())
+        now = datetime.now(timezone.utc)
+        with closing(connect(':memory:')) as db:
+            record_price(db, offer.store, offer.product_id, 80000, now - timedelta(days=1))
+            decision = evaluate(db, offer, Config(), now)
+        self.assertEqual(decision.status, 'pending_review')
+        self.assertIn('Disponibilidade não confirmada', decision.reasons)
 
     def test_other_asin_or_partner_seller_cannot_supply_this_quote(self):
         for html in (self.html(asin='B000000000'), self.html(seller='Parceiro'),

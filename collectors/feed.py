@@ -45,6 +45,11 @@ class AuthorizedFeed:
                     raise ValueError()
                 if store_for_url(row["url"]) != self.store or type(row["available"]) is not bool:
                     raise ValueError()
+                availability_evidence = row.get("availability_evidence", "")
+                if "availability_evidence" in row and (
+                        self.store != "amazon" or availability_evidence != "unknown"
+                        or row["available"]):
+                    raise ValueError()
                 key, url = canonical_product(row["url"])
                 if not row["seller_id"] or not row["payment_terms"] or not row["title"] or key in offers:
                     raise ValueError()
@@ -56,7 +61,8 @@ class AuthorizedFeed:
                                     row["payment_terms"], row["available"], url, False,
                                     source="authorized_feed", observed_at=observed.astimezone(timezone.utc).isoformat(),
                                     price_basis=row.get("price_basis", "feed_price"),
-                                    official_store_id=official, shipped_by=shipped_by)
+                                    official_store_id=official, shipped_by=shipped_by,
+                                    availability_evidence=availability_evidence)
             return offers
         except SourceError:
             raise

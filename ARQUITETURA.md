@@ -164,6 +164,15 @@ ou nulo; `shipped_by` deve ser texto, com a entidade responsável pela entrega.
 Ausência da evidência impede aprovação automática. Quem gera o feed autorizado
 deve preservar os dados reais da oferta, sem inferir entrega a partir do vendedor.
 
+Para a Amazon, um fornecedor autorizado pode informar `available: false` e
+`availability_evidence: "unknown"` quando o estoque não puder ser confirmado.
+Essa combinação permite avaliar a oferta pelas mesmas regras de histórico, desconto
+e vendedor, mas qualquer mensagem enviada avisa que a disponibilidade e o pagamento
+precisam ser confirmados na Amazon. O campo não pode ser usado em feeds de outras
+lojas nem junto de `available: true`. Sem essa evidência explícita, a oferta não é
+elegível por estoque desconhecido. O modo `public_catalog_review` da Amazon continua
+sem publicação automática porque sua cotação não confirma o preço de compra avulsa.
+
 O caminho comum valida moeda BRL, centavos inteiros, título, vendedor, estoque,
 data, URL da loja e identidade do produto. O histórico de API/feed usa uma chave
 separada do histórico legado, evitando comparar preço PIX com outra base de preço.

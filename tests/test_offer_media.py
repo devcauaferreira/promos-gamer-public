@@ -59,6 +59,28 @@ class OfferMediaTests(unittest.TestCase):
         self.assertIn('Frete não incluído.', message)
         self.assertIn('— *Promos Gamer*', message)
 
+    def test_unconfirmed_marketplace_catalog_message_warns_and_hides_unknown_payment(self):
+        offer = Offer('mercadolivre', 'ml-item', 'Processador Ryzen 5', '42', 38000,
+                      None, 'Preço do anúncio no catálogo; confira as condições de pagamento na loja',
+                      False, 'https://www.mercadolivre.com.br/p/MLB19444510',
+                      source='official_catalog', official_store_id=1,
+                      availability_evidence='unknown')
+        message = build_message(offer, Decision('approved', 50000, 24.0, ()))
+        self.assertIn('⚠️ *ESTOQUE NÃO CONFIRMADO*', message)
+        self.assertIn('Confirme a disponibilidade e as condições de pagamento no Mercado Livre', message)
+        self.assertNotIn('💳', message)
+        self.assertNotIn('Preço do anúncio no catálogo', message)
+
+    def test_unconfirmed_amazon_feed_message_warns_and_hides_payment(self):
+        offer = Offer('amazon', 'amazon-item', 'Processador Ryzen 5', 'Amazon.com.br', 38000,
+                      None, 'À vista no PIX', False, 'https://www.amazon.com.br/dp/B09VCJ171S',
+                      source='authorized_feed', shipped_by='Amazon.com.br',
+                      availability_evidence='unknown')
+        message = build_message(offer, Decision('approved', 50000, 24.0, ()))
+        self.assertIn('⚠️ *ESTOQUE NÃO CONFIRMADO*', message)
+        self.assertIn('Confirme a disponibilidade e as condições de pagamento na Amazon', message)
+        self.assertNotIn('💳 À vista no PIX', message)
+
     def test_message_window_matches_the_window_used_to_evaluate_the_offer(self):
         offer = Offer('kabum', 'cpu', 'Processador Ryzen 5 5500', 'KaBuM!', 52962,
                       None, 'À vista no PIX', True, 'https://www.kabum.com.br/produto/320799',

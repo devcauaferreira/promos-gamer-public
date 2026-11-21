@@ -8,12 +8,27 @@ from pathlib import Path
 from unittest.mock import patch
 
 from database.models import Offer, connect
-from services.outbox import enqueue, ensure_outbox, pending
+from services.outbox import enqueue, ensure_outbox, pending, same_offer
 from services.price_history import record_price
 from services.runner import cycle
 
 
 class OutboxTests(unittest.TestCase):
+    def test_queued_offer_is_stale_when_availability_evidence_changes(self):
+        offer = Offer('amazon', 'amazon-item', 'Processador Ryzen', 'Amazon.com.br', 36000,
+                      None, 'PIX', False, 'https://www.amazon.com.br/dp/B09VCJ171S',
+                      source='authorized_feed', availability_evidence='unknown')
+        changed = Offer('amazon', 'amazon-item', 'Processador Ryzen', 'Amazon.com.br', 36000,
+                        None, 'PIX', False, 'https://www.amazon.com.br/dp/B09VCJ171S',
+                        source='authorized_feed', availability_evidence='unavailable')
+        self.assertFalse(same_offer(changed, {
+            'store': offer.store, 'title': offer.title, 'seller_id': offer.seller_id,
+            'price_cents': offer.price_cents, 'payment_terms': offer.payment_terms,
+            'available': offer.available, 'availability_evidence': offer.availability_evidence,
+            'official_store_id': offer.official_store_id, 'shipped_by': offer.shipped_by,
+            'source': offer.source, 'price_basis': offer.price_basis,
+            'affiliate_url': offer.affiliate_url}))
+
     def test_cycle_preserves_retryable_and_confirmed_outbox_states_on_checkpoint_failures(self):
         for failure in ('before_send', 'after_confirmation'):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as folder:

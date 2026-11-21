@@ -38,4 +38,5 @@ def set_state(db, entry, state):
 def same_offer(current, expected):
     return all(getattr(current, key) == expected.get(key) for key in (
         'store', 'title', 'seller_id', 'price_cents', 'payment_terms', 'available',
-        'official_store_id', 'shipped_by', 'source', 'price_basis', 'affiliate_url'))
+        'availability_evidence', 'official_store_id', 'shipped_by', 'source', 'price_basis',
+        'affiliate_url'))

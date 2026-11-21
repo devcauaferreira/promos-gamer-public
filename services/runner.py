@@ -92,7 +92,14 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                     channel = "whatsapp:" + group
                     decision = evaluate(db, offer, config, now, channel)
                     row.update(offer=asdict(offer), decision=asdict(decision), message=build_message(offer, decision))
-                    if offer.available and offer.seller_id and offer.payment_terms:
+                    unconfirmed_ml_catalog = (offer.store == "mercadolivre"
+                                              and offer.source == "official_catalog"
+                                              and offer.availability_evidence == "unknown")
+                    unconfirmed_amazon_feed = (offer.store == "amazon"
+                                               and offer.source == "authorized_feed"
+                                               and offer.availability_evidence == "unknown")
+                    if (offer.available or unconfirmed_ml_catalog or unconfirmed_amazon_feed) \
+                            and offer.seller_id and offer.payment_terms:
                         record_price(db, offer.store, offer.product_id, offer.price_cents, observed_at)
                     else:
                         row["history_skipped"] = "Estoque, vendedor ou pagamento não confirmado"
@@ -126,8 +133,9 @@ def cycle(send=False, visible=False, discover_only=False, force_discovery=False,
                     # Confere novamente o anúncio: a busca de todas as lojas pode demorar.
                     current = sources[entry["store"]].collect(entry)
                     if (current.price_cents, current.seller_id, current.payment_terms, current.available,
-                        current.official_store_id, current.shipped_by) != (offer.price_cents, offer.seller_id,
-                        offer.payment_terms, offer.available, offer.official_store_id, offer.shipped_by):
+                        current.availability_evidence, current.official_store_id, current.shipped_by) != (
+                            offer.price_cents, offer.seller_id, offer.payment_terms, offer.available,
+                            offer.availability_evidence, offer.official_store_id, offer.shipped_by):
                         row["send_status"] = "skipped: anúncio mudou durante a execução"
                         set_state(db, entry, 'stale')
                         continue

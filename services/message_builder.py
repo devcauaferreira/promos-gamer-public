@@ -5,16 +5,31 @@ def money(cents):
 def build_message(offer, decision):
     from services.niche import CATEGORIES, category_for
     category = category_for(offer.title)
-    lines = [f"🔥 *OFERTA DE {CATEGORIES[category].upper()}*" if category else "🔥 *OFERTA GAMER*",
-             "", f"*{offer.title}*", ""]
-    if decision.average_cents is not None:
-        lines.append(f"📉 Média dos últimos {decision.history_days} dias: {money(decision.average_cents)}")
-        if decision.history_samples:
-            lines.append(f"📊 Base: {decision.history_samples} dia(s) anterior(es) observado(s)")
-    lines.append(f"💥 *Agora: {money(offer.price_cents)}*")
-    if decision.average_cents is not None:
+    heading = f"PROMOS GAMER • {CATEGORIES[category].upper()}" if category else "PROMOS GAMER • OFERTA GAMER"
+    lines = [f"🟢 *{heading}*", f"*{offer.title}*", "━━━━━━━━━━━━━━━━"]
+    lines.append(f"💚 *{money(offer.price_cents)}*")
+    if decision.average_cents is not None and decision.discount_percent is not None:
         lines.append(f"⬇️ {decision.discount_percent:.1f}% abaixo da média".replace(".", ","))
-    lines.extend(["", f"🏬 {offer.store.title()} | Vendido por {offer.seller_id}",
-                  f"💳 {offer.payment_terms}", "", "🛒 *Compre aqui:*", offer.affiliate_url,
-                  "", "Frete não incluído. Confira preço e disponibilidade na loja."])
+    if decision.average_cents is not None:
+        lines.extend(["", "📊 *HISTÓRICO DE PREÇOS*",
+                      f"Média dos últimos {decision.history_days} dias: {money(decision.average_cents)}"])
+        if decision.history_samples:
+            lines.append(f"Base: {decision.history_samples} dia(s) observado(s)")
+    lines.append("━━━━━━━━━━━━━━━━")
+
+    seller_details = []
+    if offer.store.strip():
+        seller_details.append(offer.store.strip().title())
+    if offer.seller_id.strip():
+        seller_details.append(f"Vendedor: {offer.seller_id.strip()}")
+    if seller_details:
+        lines.append("🏬 " + " • ".join(seller_details))
+    if offer.shipped_by.strip():
+        lines.append(f"🚚 Entregue por: {offer.shipped_by.strip()}")
+    if offer.payment_terms.strip():
+        lines.append(f"💳 {offer.payment_terms.strip()}")
+    if offer.affiliate_url.strip():
+        lines.extend(["", "🛒 *COMPRAR AGORA*", offer.affiliate_url.strip()])
+    lines.extend(["", "Frete não incluído. Confira preço e disponibilidade na loja.",
+                  "— *Promos Gamer*"])
     return "\n".join(lines)

@@ -17,13 +17,47 @@ class OfferMediaTests(unittest.TestCase):
         offer = Offer('kabum', 'cpu', 'Processador Ryzen 5 5500', 'KaBuM!', 52962,
                       None, 'À vista no PIX', True, 'https://www.kabum.com.br/produto/320799')
         # Quatro argumentos continuam válidos após adicionar a janela à decisão.
-        decision = Decision('approved', 79900, 33.7, ())
+        decision = Decision('approved', 79900, 33.7, (), history_samples=12)
         message = build_message(offer, decision)
         self.assertEqual(decision.history_days, 30)
         self.assertIn('Média dos últimos 30 dias: R$ 799,00', message)
-        self.assertIn('*Agora: R$ 529,62*', message)
+        self.assertIn('💚 *R$ 529,62*', message)
         self.assertIn('33,7% abaixo da média', message)
+        self.assertIn('Base: 12 dia(s) observado(s)', message)
+        self.assertIn('🏬 Kabum • Vendedor: KaBuM!', message)
+        self.assertIn('💳 À vista no PIX', message)
+        self.assertIn('🛒 *COMPRAR AGORA*', message)
+        self.assertIn('— *Promos Gamer*', message)
         self.assertNotIn('De: ', message)
+
+    def test_message_reuses_existing_category_classifier_and_generic_heading(self):
+        examples = (
+            ('Placa de vídeo GeForce RTX 4070', 'PLACAS DE VÍDEO'),
+            ('Kit upgrade Ryzen 5 com placa mãe', 'KITS UPGRADE'),
+            ('Processador Ryzen 5 5500', 'PROCESSADORES'),
+            ('Memória RAM DDR5 16GB', 'MEMÓRIA RAM'),
+            ('Mouse gamer sem fio', 'OFERTA GAMER'),
+            ('Notebook gamer', 'OFERTA GAMER'),
+        )
+        for title, heading in examples:
+            with self.subTest(title=title):
+                offer = Offer('kabum', 'item', title, '', 10000, None, '', True, '')
+                message = build_message(offer, Decision('approved', None, None, ()))
+                self.assertIn(f'PROMOS GAMER • {heading}', message)
+
+    def test_message_omits_missing_optional_fields(self):
+        offer = Offer('', 'item', 'Produto sem categoria', '', 10000, None, '', True, '')
+        decision = Decision('approved', None, None, ())
+        message = build_message(offer, decision)
+        self.assertNotIn('HISTÓRICO DE PREÇOS', message)
+        self.assertNotIn('Média dos últimos', message)
+        self.assertNotIn('Vendedor:', message)
+        self.assertNotIn('Entregue por:', message)
+        self.assertNotIn('💳', message)
+        self.assertNotIn('COMPRAR AGORA', message)
+        self.assertNotIn('None', message)
+        self.assertIn('Frete não incluído.', message)
+        self.assertIn('— *Promos Gamer*', message)
 
     def test_message_window_matches_the_window_used_to_evaluate_the_offer(self):
         offer = Offer('kabum', 'cpu', 'Processador Ryzen 5 5500', 'KaBuM!', 52962,

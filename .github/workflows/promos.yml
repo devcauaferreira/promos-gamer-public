@@ -46,6 +46,7 @@ jobs:
       PYTHONUNBUFFERED: '1'
       SHOULD_PUBLISH: ${{ vars.ENABLE_WHATSAPP_PUBLISH == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.publish) || github.event_name == 'schedule') }}
       PRODUCT_LIMIT: ${{ inputs.limit || 20 }}
+      NEXT_SLOT: ${{ inputs.not_before || '' }}
       MONITOR_TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.source == 'self_chain' && 'self_chain' || inputs.source == 'supabase_cron' && 'supabase_cron' || github.event_name }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -83,5 +84,12 @@ jobs:
           else
             echo "Nenhuma oferta aprovada para publicação; WhatsApp não iniciado."
           fi
+      - name: Reprogramar a próxima rodada
+        if: ${{ always() && vars.PROMOS_CLOUD_ENABLED == 'true' && vars.PROMOS_CHAIN_ENABLED == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROMOS_CHAIN_ENABLED: ${{ vars.PROMOS_CHAIN_ENABLED }}
+          PROMOS_PRODUCT_LIMIT: ${{ vars.PROMOS_PRODUCT_LIMIT || 20 }}
+        run: python3 -m scripts.continue_monitor
       # Não publica banco, sessão do WhatsApp ou relatórios como artifacts.
       # Estado durável e reservas de envio ficam no Supabase privado.
